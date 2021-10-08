@@ -6,7 +6,8 @@
 		body { font-family: rmlui-debugger-font; }
 		.dynamic-title { color: #f0f; }
 		.a-class { width: 100%; text-align: right; font-size: 3em; }
-		for, outerfor, innerfor { display: block; }
+		for, for2, outerfor, innerfor { display: block; }
+		#img { float: right; }
 	</style>
 	<script>
 		bindings = {
@@ -39,6 +40,12 @@
 					"copper", "orange"
 				}
 			},
+		}
+		test3 = {
+			"a",
+			"b",
+			"c",
+			"d",
 		}
 
 		imageSrc = "icons/shield-icon.png"
@@ -92,6 +99,13 @@
 					test.assertEquals(innerElement.child_nodes[1].inner_rml, data.innerList[i], "nested bind-for bind inner element")
 				end
 			end
+
+			local forElements2 = document:GetElementsByTagName("for2")
+			table.remove(forElements2, #forElements2)
+			test.assertEquals(#forElements2, #test3, "bind-for element count")
+			for i, e in pairs(forElements2) do
+				test.assertEquals(e.inner_rml, test3[i], "bind-for bind value, same element")
+			end
 		end
 	</script>
 </head>
@@ -114,5 +128,6 @@
 		</outerfor>
 	</div>
 	<img id="img" src="icons/health-icon.png" bind-attribute-src="imageSrc" />
+	<for2 id="bloop" bind-for="a in test3" bind="a" />
 </body>
 </rml>

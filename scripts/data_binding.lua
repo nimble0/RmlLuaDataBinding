@@ -55,6 +55,36 @@ end
 function bind(bindings, element, useBindingId)
 	local elementBindings = {}
 
+	local bindingIdSet = false
+	local id = false
+
+	if element:HasAttribute("bind-for") then
+		local variables, binding = parse_bind_for(element:GetAttribute("bind-for"))
+		element:SetClass("bind-for-base", true)
+
+		-- If useBindingId is true then bind-id will be set further down
+		if not useBindingId then
+			id = bindingId
+			bindingId = bindingId + 1
+			element:SetAttribute("bind-id", id)
+
+			bindings.direct[element] = {
+				["for"] = {binding = make_binding(binding), variables = variables, subBindings = {}}
+			}
+
+			-- Other binding on this element will apply to its for elements
+			useBindingId = true
+			-- Don't set the binding id again below
+			bindingItSet = true
+		else
+			elementBindings["for"] = {binding = make_binding(binding), variables = variables, subBindings = {}}
+		end
+
+		for _, child in pairs(element.child_nodes) do
+			bind(bindings, child, true)
+		end
+	end
+
 	local bindClass = element:GetAttribute("bind-class")
 	if bindClass then
 		element:SetAttribute("fixed-class", element.class_name)
@@ -79,21 +109,6 @@ function bind(bindings, element, useBindingId)
 		else
 			elementBindings.content = {binding = make_binding(bind)}
 		end
-	elseif element:HasAttribute("bind-for") then
-		local variables, binding = parse_bind_for(element:GetAttribute("bind-for"))
-		element:SetClass("bind-for-base", true)
-
-		-- If useBindingId is true then bind-id will be set further down
-		if not useBindingId then
-			local id = bindingId
-			bindingId = bindingId + 1
-			element:SetAttribute("bind-id", id)
-		end
-		elementBindings["for"] = {binding = make_binding(binding), variables = variables, subBindings = {}}
-
-		for _, child in pairs(element.child_nodes) do
-			bind(bindings, child, true)
-		end
 	-- Can't nest content bindings because inner_rml is replaced by a content binding
 	else
 		for _, child in pairs(element.child_nodes) do
@@ -103,9 +118,11 @@ function bind(bindings, element, useBindingId)
 
 	if next(elementBindings) ~= nil then
 		if useBindingId then
-			local id = bindingId
-			bindingId = bindingId + 1
-			element:SetAttribute("bind-id", id)
+			if not id then
+				id = bindingId
+				bindingId = bindingId + 1
+				element:SetAttribute("bind-id", id)
+			end
 			bindings.indirect[id] = elementBindings
 		else
 			bindings.direct[element] = elementBindings
@@ -115,25 +132,6 @@ end
 
 function update_bindings(bindings)
 	for element, elementBindings in pairs(bindings.direct) do
-		if elementBindings.class then
-			local newValue = elementBindings.class.binding()
-			local fixedClass = element:GetAttribute("fixed_class")
-			if not fixedClass then
-				fixedClass = ""
-			end
-			element.class_name = fixedClass .. " " .. newValue
-		end
-
-		for attribute, binding in pairs(elementBindings.attributes or {}) do
-			local newValue = binding.binding()
-			element:SetAttribute(attribute, newValue)
-		end
-
-		if elementBindings.content then
-			local newValue = elementBindings.content.binding()
-			element.inner_rml = newValue
-		end
-
 		if elementBindings["for"] then
 			local variables = elementBindings["for"].variables
 			local newValues = elementBindings["for"].binding()
@@ -175,6 +173,25 @@ function update_bindings(bindings)
 			end
 			_G[variables.index] = index_
 			_G[variables.it] = it_
+		else
+			if elementBindings.class then
+				local newValue = elementBindings.class.binding()
+				local fixedClass = element:GetAttribute("fixed_class")
+				if not fixedClass then
+					fixedClass = ""
+				end
+				element.class_name = fixedClass .. " " .. newValue
+			end
+
+			for attribute, binding in pairs(elementBindings.attributes or {}) do
+				local newValue = binding.binding()
+				element:SetAttribute(attribute, newValue)
+			end
+
+			if elementBindings.content then
+				local newValue = elementBindings.content.binding()
+				element.inner_rml = newValue
+			end
 		end
 	end
 end
@@ -184,24 +201,6 @@ function update_element_bindings(bindings, element)
 	local elementBindings = bindings.indirect[tonumber(id)]
 
 	if elementBindings then
-		if elementBindings.class then
-			local newValue = elementBindings.class.binding()
-			element.class_name = element:GetAttribute("fixed_class") .. " " .. newValue
-		end
-
-		for attribute, binding in pairs(elementBindings.attributes or {}) do
-			local newValue = binding.binding()
-			if newValue ~= binding.value then
-				binding.value = newValue
-				element:SetAttribute(attribute, newValue)
-			end
-		end
-
-		if elementBindings.content then
-			local newValue = elementBindings.content.binding()
-			element.inner_rml = newValue
-		end
-
 		if element:GetAttribute("bind-for") and elementBindings["for"] then
 			local variables = elementBindings["for"].variables
 			local newValues = elementBindings["for"].binding()
@@ -241,6 +240,21 @@ function update_element_bindings(bindings, element)
 			end
 			_G[variables.index] = index_
 			_G[variables.it] = it_
+		else
+			if elementBindings.class then
+				local newValue = elementBindings.class.binding()
+				element.class_name = element:GetAttribute("fixed_class") .. " " .. newValue
+			end
+
+			for attribute, binding in pairs(elementBindings.attributes or {}) do
+				local newValue = binding.binding()
+				element:SetAttribute(attribute, newValue)
+			end
+
+			if elementBindings.content then
+				local newValue = elementBindings.content.binding()
+				element.inner_rml = newValue
+			end
 		end
 	end
 
