@@ -1,0 +1,118 @@
+<rml>
+<head>
+	<title>Test</title>
+	<link type="text/rcss" href="../base.rcss"/>
+	<style>
+		body { font-family: rmlui-debugger-font; }
+		.dynamic-title { color: #f0f; }
+		.a-class { width: 100%; text-align: right; font-size: 3em; }
+		for, outerfor, innerfor { display: block; }
+	</style>
+	<script>
+		bindings = {
+			direct = {},
+			indirect = {}
+		}
+
+		title = "Dynamic test"
+		options = {
+			"play",
+			"options",
+			"quit"
+		}
+		outerList = {
+			{
+				title = "a",
+				innerList = {
+					"gold", "silver", "orange"
+				}
+			},
+			{
+				title = "b",
+				innerList = {
+					"iron"
+				}
+			},
+			{
+				title = "c",
+				innerList = {
+					"copper", "orange"
+				}
+			},
+		}
+
+		imageSrc = "icons/shield-icon.png"
+
+		testDocument = nil
+
+		function make_bindings(document)
+			data_binding.bind(bindings, document)
+		end
+
+		function update_bindings(document)
+			data_binding.update_bindings(bindings)
+		end
+
+		function run_tests(document)
+			update_bindings(document)
+
+			local titleElement = document:GetElementById("title")
+			test.assertEquals(titleElement.inner_rml, title, "bind")
+			test.assert(titleElement:IsClassSet("dynamic-title"), "bind-class")
+
+			local imgElement = document:GetElementById("img")
+			test.assertEquals(imgElement:GetAttribute("src"), "icons/shield-icon.png", "bind-attribute-src")
+
+			local forElements = document:GetElementsByTagName("for")
+			table.remove(forElements, #forElements)
+			test.assertEquals(#forElements, #options, "bind-for element count")
+			for i, e in pairs(forElements) do
+				local option = options[i]
+				local indexBindElement = e.child_nodes[2]
+				local valueBindElement = e.child_nodes[3]
+				test.assertEquals(indexBindElement.inner_rml, tostring(i), "bind-for bind index")
+				test.assertEquals(valueBindElement.inner_rml, option, "bind-for bind value")
+			end
+
+			local outerListForElements = document:GetElementsByTagName("outerfor")
+			table.remove(outerListForElements, #outerListForElements)
+			test.assertEquals(#outerListForElements, #outerList, "nested bind-for outer element count")
+			for i, e in pairs(outerListForElements) do
+				local data = outerList[i]
+				local innerElements = {}
+				for i, child in pairs(e.child_nodes) do
+					if child.tag_name == "innerfor" then
+						table.insert(innerElements, child)
+					end
+				end
+				table.remove(innerElements, #innerElements)
+
+				test.assertEquals(#innerElements, #data.innerList, "nested bind-for inner element count")
+				for i, innerElement in pairs(innerElements) do
+					test.assertEquals(innerElement.child_nodes[1].inner_rml, data.innerList[i], "nested bind-for bind inner element")
+				end
+			end
+		end
+	</script>
+</head>
+<body id="body" onload="testDocument = document">
+	<button onclick="make_bindings(document)">make bindings</button>
+	<button onclick="update_bindings(document)">update bindings</button>
+	<h1 id="title" bind="title" bind-class="'dynamic-'..'title'">Test</h1>
+	<div id="main-menu-wrapper">
+		<div bind-class="'a-class'">some text</div>
+		<div bind-for="index, option in options">
+			<for class="wrapper">repeat me <span bind="index" /> <span bind="option" /></for>
+		</div>
+	</div>
+	<div>
+		<outerfor bind-for="position in outerList">
+			<h2 bind="position.title" />
+			<innerfor bind-for="colour in position.innerList">
+				<span bind="colour" />
+			</innerfor>
+		</outerfor>
+	</div>
+	<img id="img" src="icons/health-icon.png" bind-attribute-src="imageSrc" />
+</body>
+</rml>
