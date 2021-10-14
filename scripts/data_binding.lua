@@ -265,21 +265,30 @@ function update_binding(elementBindings, indirectBindings, element)
 	else
 		if elementBindings.class then
 			local newValue = elementBindings.class.binding()
-			local fixedClass = element:GetAttribute("fixed_class")
-			if not fixedClass then
-				fixedClass = ""
+			if newValue ~= elementBindings.class.value then
+				elementBindings.class.value = newValue
+				local fixedClass = element:GetAttribute("fixed_class")
+				if not fixedClass then
+					fixedClass = ""
+				end
+				element.class_name = fixedClass .. " " .. newValue
 			end
-			element.class_name = fixedClass .. " " .. newValue
 		end
 
 		for attribute, binding in pairs(elementBindings.attributes or {}) do
 			local newValue = binding.binding()
-			element:SetAttribute(attribute, newValue)
+			if newValue ~= binding.value then
+				binding.value = newValue
+				element:SetAttribute(attribute, newValue)
+			end
 		end
 
 		if elementBindings.content then
 			local newValue = elementBindings.content.binding()
-			element.inner_rml = newValue
+			if newValue ~= elementBindings.content.value then
+				elementBindings.content.value = newValue
+				element.inner_rml = newValue
+			end
 		end
 	end
 end
