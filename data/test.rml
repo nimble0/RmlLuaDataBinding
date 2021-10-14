@@ -49,6 +49,7 @@
 		imageSrc = "icons/shield-icon.png"
 
 		testDocument = nil
+		lastClickEvent = ""
 
 		function make_bindings(document)
 			data_binding.bind(directBindings, indirectBindings, document)
@@ -64,6 +65,8 @@
 			local titleElement = document:GetElementById("title")
 			test.assertEquals(titleElement.inner_rml, title, "bind")
 			test.assert(titleElement:IsClassSet("dynamic-title"), "bind-class")
+			titleElement:DispatchEvent("click", {})
+			test.assert(lastClickEvent, "test1")
 
 			local imgElement = document:GetElementById("img")
 			test.assertEquals(imgElement:GetAttribute("src"), "icons/shield-icon.png", "bind-attribute-src")
@@ -95,6 +98,8 @@
 				test.assertEquals(#innerElements, #data.innerList, "nested bind-for inner element count")
 				for i, innerElement in pairs(innerElements) do
 					test.assertEquals(innerElement.child_nodes[1].inner_rml, data.innerList[i], "nested bind-for bind inner element")
+					innerElement:DispatchEvent("click", {})
+					test.assert(lastClickEvent, innerElement.inner_rml)
 				end
 			end
 
@@ -110,7 +115,7 @@
 <body id="body" onload="testDocument = document">
 	<button onclick="make_bindings(document)">make bindings</button>
 	<button onclick="update_bindings(document)">update bindings</button>
-	<h1 id="title" bind="title" bind-class="'dynamic-'..'title'">Test</h1>
+	<h1 id="title" bind="title" bind-class="'dynamic-'..'title'" bind-event-click="print('click test1') lastClickEvent = 'test1'">Test</h1>
 	<div id="main-menu-wrapper">
 		<div bind-class="'a-class'">some text</div>
 		<div bind-for="index, option in options">
@@ -120,7 +125,7 @@
 	<div>
 		<outerfor bind-for="position in outerList">
 			<h2 bind="position.title" />
-			<innerfor bind-for="colour in position.innerList">
+			<innerfor bind-for="colour in position.innerList" bind-event-click="print('click test2', element.inner_rml) lastClickEvent = element.inner_rml">
 				<span bind="colour" />
 			</innerfor>
 		</outerfor>

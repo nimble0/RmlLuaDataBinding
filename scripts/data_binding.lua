@@ -115,6 +115,20 @@ function bind(
 		elementBindings.attributes = attributes
 	end
 
+	local events = {}
+	for attribute, bind in pairs(element.attributes) do
+		if attribute:sub(1, 11) == "bind-event-" then
+			local event = attribute:sub(12)
+			events[event] = {binding = bind}
+			if not useBindingId then
+				element:AddEventListener(event, bind, true)
+			end
+		end
+	end
+	if next(events) ~= nil then
+		elementBindings.events = events
+	end
+
 	if element:HasAttribute("bind") then
 		local bind = element:GetAttribute("bind")
 		if bind:len() == 0 then
@@ -192,6 +206,10 @@ function bind_for_child(
 
 	local elementBindings = clone_binding(indirectBindings[id] or {})
 
+	for event, binding in pairs(elementBindings.events or {}) do
+		element:AddEventListener(event, binding.binding, true)
+	end
+
 	elementBindings["for"] = nil
 	elementBindings.element = element
 	elementBindings.childBindings = {}
@@ -214,6 +232,10 @@ function bind_for_sub_element(
 
 	if next(bindings) ~= nil then
 		directBindings[element] = bindings
+
+		for event, binding in pairs(bindings.events or {}) do
+			element:AddEventListener(event, binding.binding, true)
+		end
 	end
 
 	if not bindings.bind and not bindings["for"] then
