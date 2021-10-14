@@ -10,10 +10,8 @@
 		#img { float: right; }
 	</style>
 	<script>
-		bindings = {
-			direct = {},
-			indirect = {}
-		}
+		directBindings = {}
+		indirectBindings = {}
 
 		title = "Dynamic test"
 		options = {
@@ -53,11 +51,11 @@
 		testDocument = nil
 
 		function make_bindings(document)
-			data_binding.bind(bindings, document)
+			data_binding.bind(directBindings, indirectBindings, document)
 		end
 
 		function update_bindings(document)
-			data_binding.update_bindings(bindings)
+			data_binding.update_bindings(directBindings, indirectBindings)
 		end
 
 		function run_tests(document)

@@ -52,7 +52,12 @@ function parse_bind_for(value)
 	return variables, eval
 end
 
-function bind(bindings, element, useBindingId)
+function bind(
+	directBindings,
+	indirectBindings,
+	element,
+	useBindingId
+)
 	local elementBindings = {}
 
 	local bindingIdSet = false
@@ -68,8 +73,12 @@ function bind(bindings, element, useBindingId)
 			bindingId = bindingId + 1
 			element:SetAttribute("bind-id", id)
 
-			bindings.direct[element] = {
-				["for"] = {binding = make_binding(binding), variables = variables, subBindings = {}}
+			directBindings[element] = {
+				["for"] = {
+					binding = make_binding(binding),
+					variables = variables,
+					elements = {}
+				}
 			}
 
 			-- Other binding on this element will apply to its for elements
@@ -77,11 +86,15 @@ function bind(bindings, element, useBindingId)
 			-- Don't set the binding id again below
 			bindingItSet = true
 		else
-			elementBindings["for"] = {binding = make_binding(binding), variables = variables, subBindings = {}}
+			elementBindings["for"] = {
+				binding = make_binding(binding),
+				variables = variables,
+				elements = {}
+			}
 		end
 
 		for _, child in pairs(element.child_nodes) do
-			bind(bindings, child, true)
+			bind(directBindings, indirectBindings, child, true)
 		end
 	end
 
@@ -112,7 +125,7 @@ function bind(bindings, element, useBindingId)
 	-- Can't nest content bindings because inner_rml is replaced by a content binding
 	else
 		for _, child in pairs(element.child_nodes) do
-			bind(bindings, child, useBindingId)
+			bind(directBindings, indirectBindings, child, useBindingId)
 		end
 	end
 
@@ -123,155 +136,157 @@ function bind(bindings, element, useBindingId)
 				bindingId = bindingId + 1
 				element:SetAttribute("bind-id", id)
 			end
-			bindings.indirect[id] = elementBindings
+			indirectBindings[id] = elementBindings
 		else
-			bindings.direct[element] = elementBindings
+			directBindings[element] = elementBindings
 		end
 	end
 end
 
-function update_bindings(bindings)
-	for element, elementBindings in pairs(bindings.direct) do
-		if elementBindings["for"] then
-			local variables = elementBindings["for"].variables
-			local newValues = elementBindings["for"].binding()
-			local id = element:GetAttribute("bind-id")
+function clone_binding(binding)
+	local clone = {}
 
-			local forElements = {}
-			for i, sibling in pairs(element.parent_node.child_nodes) do
-				if sibling:GetAttribute("bind-for-parent") == id then
-					table.insert(forElements, sibling)
-				end
-			end
+	for k, v in pairs(binding) do
+		local bindingClone = {}
+		for k2, v2 in pairs(v) do
+			bindingClone[k2] = v2
+		end
+		clone[k] = bindingClone
+	end
 
-			while #newValues > #forElements do
-				element.parent_node:InsertBefore(element.owner_document:CreateElement(element.tag_name), element)
-				local forElement = element.previous_sibling
-				for k, v in pairs(element.attributes) do
-					forElement:SetAttribute(k, v)
-				end
-				forElement:RemoveAttribute("bind-for")
-				forElement:SetAttribute("bind-for-parent", id)
-				forElement.class_name = element.class_name
-				forElement:SetClass("bind-for-base", false)
-				forElement.inner_rml = element.inner_rml
-				table.insert(forElements, forElement)
-			end
-			while #newValues < #forElements do
-				element.parent_node:RemoveChild(forElements[#forElements])
-				table.remove(forElements, #forElements)
-			end
+	if binding["for"] then
+		clone["for"].elements = {}
+	end
 
-			local index_ = _G[variables.index]
-			local it_ = _G[variables.it]
-			for i, newValue in pairs(newValues) do
-				local forElement = forElements[i]
-				_G[variables.index] = i
-				_G[variables.it] = newValue
+	if binding.attributes then
+		clone.attributes = {}
+		for k, v in pairs(binding.attributes) do
+			local bindingClone = {}
+			for k2, v2 in pairs(v) do
+				bindingClone[k2] = v2
+			end
+			clone.attributes[k] = bindingClone
+		end
+	end
 
-				update_element_bindings(bindings, forElement)
+	if binding.events then
+		clone.events = {}
+		for k, v in pairs(binding.events) do
+			local bindingClone = {}
+			for k2, v2 in pairs(v) do
+				bindingClone[k2] = v2
 			end
-			_G[variables.index] = index_
-			_G[variables.it] = it_
-		else
-			if elementBindings.class then
-				local newValue = elementBindings.class.binding()
-				local fixedClass = element:GetAttribute("fixed_class")
-				if not fixedClass then
-					fixedClass = ""
-				end
-				element.class_name = fixedClass .. " " .. newValue
-			end
+			clone.events[k] = bindingClone
+		end
+	end
 
-			for attribute, binding in pairs(elementBindings.attributes or {}) do
-				local newValue = binding.binding()
-				element:SetAttribute(attribute, newValue)
-			end
+	return clone
+end
 
-			if elementBindings.content then
-				local newValue = elementBindings.content.binding()
-				element.inner_rml = newValue
-			end
+function bind_for_child(
+	directBindings,
+	indirectBindings,
+	element
+)
+	local id = tonumber(element:GetAttribute("bind-id"))
+
+	local elementBindings = clone_binding(indirectBindings[id] or {})
+
+	elementBindings["for"] = nil
+	elementBindings.element = element
+	elementBindings.childBindings = {}
+	if not element.bind then
+		for _, child in pairs(element.child_nodes) do
+			bind_for_sub_element(elementBindings.childBindings, indirectBindings, child)
+		end
+	end
+
+	table.insert(directBindings, elementBindings)
+end
+
+function bind_for_sub_element(
+	directBindings,
+	indirectBindings,
+	element
+)
+	local id = tonumber(element:GetAttribute("bind-id"))
+	local bindings = clone_binding(indirectBindings[id] or {})
+
+	if next(bindings) ~= nil then
+		directBindings[element] = bindings
+	end
+
+	if not bindings.bind and not bindings["for"] then
+		for _, child in pairs(element.child_nodes) do
+			bind_for_sub_element(directBindings, indirectBindings, child)
 		end
 	end
 end
 
-function update_element_bindings(bindings, element)
-	local id = element:GetAttribute("bind-id")
-	local elementBindings = bindings.indirect[tonumber(id)]
+function update_binding(elementBindings, indirectBindings, element)
+	if elementBindings["for"] then
+		local variables = elementBindings["for"].variables
+		local newValues = elementBindings["for"].binding()
+		local elements = elementBindings["for"].elements
+		local id = element:GetAttribute("bind-id")
 
-	if elementBindings then
-		if element:GetAttribute("bind-for") and elementBindings["for"] then
-			local variables = elementBindings["for"].variables
-			local newValues = elementBindings["for"].binding()
-			local id = element:GetAttribute("bind-id")
+		while #newValues > #elements do
+			element.parent_node:InsertBefore(element.owner_document:CreateElement(element.tag_name), element)
+			local forElement = element.previous_sibling
+			for k, v in pairs(element.attributes) do
+				forElement:SetAttribute(k, v)
+			end
+			forElement:RemoveAttribute("bind-for")
+			forElement:SetAttribute("bind-for-parent", id)
+			forElement.class_name = element.class_name
+			forElement:SetClass("bind-for-base", false)
+			forElement.inner_rml = element.inner_rml
+			bind_for_child(elements, indirectBindings, forElement)
+		end
+		while #newValues < #elements do
+			element.parent_node:RemoveChild(elements[#elements].element)
+			table.remove(elements, #elements)
+		end
 
-			local forElements = {}
-			for i, sibling in pairs(element.parent_node.child_nodes) do
-				if sibling:GetAttribute("bind-for-parent") == id then
-					table.insert(forElements, sibling)
-				end
-			end
+		local index_ = _G[variables.index]
+		local it_ = _G[variables.it]
+		for i, newValue in pairs(newValues) do
+			local forElementBindings = elements[i]
+			_G[variables.index] = i
+			_G[variables.it] = newValue
 
-			while #newValues > #forElements do
-				element.parent_node:InsertBefore(element.owner_document:CreateElement(element.tag_name), element)
-				local forElement = element.previous_sibling
-				for k, v in pairs(element.attributes) do
-					forElement:SetAttribute(k, v)
-				end
-				forElement:RemoveAttribute("bind-for")
-				forElement:SetAttribute("bind-for-parent", id)
-				forElement.inner_rml = element.inner_rml
-				table.insert(forElements, forElement)
+			update_binding(forElementBindings, indirectBindings, forElementBindings.element)
+			for childElement, childBindings in pairs(forElementBindings.childBindings) do
+				update_binding(childBindings, indirectBindings, childElement)
 			end
-			while #newValues < #forElements do
-				element.parent_node:RemoveChild(forElements[#forElements])
-				table.remove(forElements, #forElements)
+		end
+		_G[variables.index] = index_
+		_G[variables.it] = it_
+	else
+		if elementBindings.class then
+			local newValue = elementBindings.class.binding()
+			local fixedClass = element:GetAttribute("fixed_class")
+			if not fixedClass then
+				fixedClass = ""
 			end
+			element.class_name = fixedClass .. " " .. newValue
+		end
 
-			local index_ = _G[variables.index]
-			local it_ = _G[variables.it]
-			for i, newValue in pairs(newValues) do
-				local forElement = forElements[i]
-				_G[variables.index] = i
-				_G[variables.it] = newValue
+		for attribute, binding in pairs(elementBindings.attributes or {}) do
+			local newValue = binding.binding()
+			element:SetAttribute(attribute, newValue)
+		end
 
-				update_element_bindings(bindings, forElement)
-			end
-			_G[variables.index] = index_
-			_G[variables.it] = it_
-		else
-			if elementBindings.class then
-				local newValue = elementBindings.class.binding()
-				element.class_name = element:GetAttribute("fixed_class") .. " " .. newValue
-			end
-
-			for attribute, binding in pairs(elementBindings.attributes or {}) do
-				local newValue = binding.binding()
-				element:SetAttribute(attribute, newValue)
-			end
-
-			if elementBindings.content then
-				local newValue = elementBindings.content.binding()
-				element.inner_rml = newValue
-			end
+		if elementBindings.content then
+			local newValue = elementBindings.content.binding()
+			element.inner_rml = newValue
 		end
 	end
+end
 
-	if not element:GetAttribute("bind-for") then
-		-- Copy child_nodes to make sure insertions by update_element_bindings
-		-- don't mess up iteration
-		local children = {}
-		for i, child in pairs(element.child_nodes) do
-			-- bind-for children are handled above
-			if not child:GetAttribute("bind-for-parent") then
-				table.insert(children, child)
-			end
-		end
-
-		for i, child in pairs(children) do
-			update_element_bindings(bindings, child)
-		end
+function update_bindings(directBindings, indirectBindings)
+	for element, elementBindings in pairs(directBindings) do
+		update_binding(elementBindings, indirectBindings, element)
 	end
 end
 
