@@ -52,6 +52,68 @@ function parse_bind_for(value)
 	return variables, eval
 end
 
+function make_lens(table, key)
+	return
+		function() return table[key] end,
+		function(v) table[key] = v end
+end
+
+function make_number_lens(table, key)
+	return
+		function() return table[key] end,
+		function(v)
+			local v2 = tonumber(v)
+			if v2 then
+				table[key] = v2
+			end
+		end
+end
+
+function make_float_lens(table, key, format)
+	return
+		function() return string.format(format, table[key]) end,
+		function(v)
+			local v2 = tonumber(v)
+			if v2 then
+				table[key] = v2
+			end
+		end
+end
+
+function make_boolean_lens(table, key)
+	return
+		function() return table[key] end,
+		function(v)
+			if v:len() > 0 then
+				table[key] = true
+			else
+				table[key] = false
+			end
+		end
+end
+
+function make_enum_lens(table, key, enum)
+	return
+		function() return enum[table[key]] end,
+		function(v)
+			local v2 = enum[v]
+			if v2 then
+				table[key] = enum[v]
+			end
+		end
+end
+
+function bind_value_set(element, bindValue)
+	element:AddEventListener("change",
+		function(event)
+			if not element:GetAttribute("ignore-change") then
+				bindValue.set(event.parameters.value)
+				bindValue.value = bindValue.get()
+			end
+		end,
+		true)
+end
+
 function bind(
 	directBindings,
 	indirectBindings,
@@ -127,6 +189,24 @@ function bind(
 	end
 	if next(events) ~= nil then
 		elementBindings.events = events
+	end
+
+	local bindValue = element:GetAttribute("bind-value")
+	if bindValue then
+		local get, set = make_binding(bindValue)()
+		elementBindings.value = {get = get, set = set}
+		if not useBindingId then
+			bind_value_set(element, elementBindings.value)
+		end
+	end
+
+	local bindChecked = element:GetAttribute("bind-checked")
+	if bindChecked then
+		local get, set = make_binding(bindChecked)()
+		elementBindings.checked = {get = get, set = set}
+		if not useBindingId then
+			bind_value_set(element, elementBindings.checked)
+		end
 	end
 
 	if element:HasAttribute("bind") then
@@ -210,6 +290,14 @@ function bind_for_child(
 		element:AddEventListener(event, binding.binding, true)
 	end
 
+	if elementBindings.value then
+		bind_value_set(element, elementBindings.value)
+	end
+
+	if elementBindings.checked then
+		bind_value_set(element, elementBindings.checked)
+	end
+
 	elementBindings["for"] = nil
 	elementBindings.element = element
 	elementBindings.childBindings = {}
@@ -236,6 +324,14 @@ function bind_for_sub_element(
 		for event, binding in pairs(bindings.events or {}) do
 			element:AddEventListener(event, binding.binding, true)
 		end
+	end
+
+	if bindings and bindings.value then
+		bind_value_set(element, bindings.value)
+	end
+
+	if bindings and bindings.checked then
+		bind_value_set(element, bindings.checked)
 	end
 
 	if not bindings.bind and not bindings["for"] then
@@ -305,6 +401,30 @@ function update_binding(elementBindings, indirectBindings, element)
 			end
 		end
 
+		if elementBindings.value then
+			local lens = elementBindings.value
+			local newValue = lens.get()
+			if newValue ~= elementBindings.value.value then
+				elementBindings.value.value = newValue
+				element:SetAttribute("ignore-change", "")
+				Element.As.ElementFormControl(element).value = newValue
+				element:DispatchEvent("change", { value = newValue })
+				element:RemoveAttribute("ignore-change")
+			end
+		end
+
+		if elementBindings.checked then
+			local lens = elementBindings.checked
+			local newValue = lens.get()
+			if newValue ~= elementBindings.checked.value then
+				elementBindings.checked.value = newValue
+				element:SetAttribute("ignore-change", "")
+				Element.As.ElementFormControlInput(element).checked = newValue == element:GetAttribute("value")
+				element:DispatchEvent("change", { value = newValue })
+				element:RemoveAttribute("ignore-change")
+			end
+		end
+
 		if elementBindings.content then
 			local newValue = elementBindings.content.binding()
 			if newValue ~= elementBindings.content.value then
@@ -323,5 +443,9 @@ end
 
 return {
 	bind = bind,
-	update_bindings = update_bindings
+	update_bindings = update_bindings,
+	make_lens = make_lens,
+	make_number_lens = make_number_lens,
+	make_boolean_lens = make_boolean_lens,
+	make_enum_lens = make_enum_lens,
 }
