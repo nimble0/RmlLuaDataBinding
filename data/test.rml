@@ -15,8 +15,7 @@
 		.right { float: right; }
 	</style>
 	<script>
-		directBindings = {}
-		indirectBindings = {}
+		bindings = {}
 
 		title = "Dynamic test"
 		options = {
@@ -59,11 +58,11 @@
 		lastClickEvent = ""
 
 		function make_bindings(document)
-			data_binding.bind(directBindings, indirectBindings, document)
+			data_binding.make_bindings(bindings, document)
 		end
 
 		function update_bindings(document)
-			data_binding.update_bindings(directBindings, indirectBindings)
+			data_binding.update_bindings(bindings)
 		end
 
 		function run_tests(document)

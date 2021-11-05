@@ -435,14 +435,20 @@ function update_binding(elementBindings, indirectBindings, element)
 	end
 end
 
-function update_bindings(directBindings, indirectBindings)
-	for element, elementBindings in pairs(directBindings) do
-		update_binding(elementBindings, indirectBindings, element)
+function make_bindings(bindings, element)
+	bindings.direct = {}
+	bindings.indirect = {}
+	bind(bindings.direct, bindings.indirect, element)
+end
+
+function update_bindings(bindings)
+	for element, elementBindings in pairs(bindings.direct) do
+		update_binding(elementBindings, bindings.indirect, element)
 	end
 end
 
 return {
-	bind = bind,
+	make_bindings = make_bindings,
 	update_bindings = update_bindings,
 	make_lens = make_lens,
 	make_number_lens = make_number_lens,
