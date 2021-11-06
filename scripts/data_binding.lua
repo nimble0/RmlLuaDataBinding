@@ -1,5 +1,33 @@
 local bindingId = 0
 
+function error_handler(m)
+	print(m)
+end
+
+function consecutive_error_handler(m) end
+
+function safe_get_binding(binding)
+	local errorHandler = error_handler
+	-- Don't spam log with the same errors
+	if binding.errored then
+		errorHandler = consecutive_error_handler
+	end
+	local success, value = xpcall(binding.binding, errorHandler)
+	binding.errored = not success
+	return value
+end
+
+function safe_get_binding_lens(binding)
+	local errorHandler = error_handler
+	-- Don't spam log with the same errors
+	if binding.errored then
+		errorHandler = consecutive_error_handler
+	end
+	local success, value = xpcall(binding.get, errorHandler)
+	binding.errored = not success
+	return value
+end
+
 function trim(s)
    return s:match'^()%s*$' and '' or s:match'^%s*(.*%S)'
 end
@@ -344,7 +372,7 @@ end
 function update_binding(elementBindings, indirectBindings, element)
 	if elementBindings["for"] then
 		local variables = elementBindings["for"].variables
-		local newValues = elementBindings["for"].binding()
+		local newValues = safe_get_binding(elementBindings["for"]) or {}
 		local elements = elementBindings["for"].elements
 		local id = element:GetAttribute("bind-id")
 
@@ -382,7 +410,7 @@ function update_binding(elementBindings, indirectBindings, element)
 		_G[variables.it] = it_
 	else
 		if elementBindings.class then
-			local newValue = elementBindings.class.binding()
+			local newValue = safe_get_binding(elementBindings.class)
 			if newValue ~= elementBindings.class.value then
 				elementBindings.class.value = newValue
 				local fixedClass = element:GetAttribute("fixed_class")
@@ -394,7 +422,7 @@ function update_binding(elementBindings, indirectBindings, element)
 		end
 
 		for attribute, binding in pairs(elementBindings.attributes or {}) do
-			local newValue = binding.binding()
+			local newValue = safe_get_binding(binding)
 			if newValue ~= binding.value then
 				binding.value = newValue
 				element:SetAttribute(attribute, newValue)
@@ -402,8 +430,7 @@ function update_binding(elementBindings, indirectBindings, element)
 		end
 
 		if elementBindings.value then
-			local lens = elementBindings.value
-			local newValue = lens.get()
+			local newValue = safe_get_binding_lens(elementBindings.value)
 			if newValue ~= elementBindings.value.value then
 				elementBindings.value.value = newValue
 				element:SetAttribute("ignore-change", "")
@@ -414,8 +441,7 @@ function update_binding(elementBindings, indirectBindings, element)
 		end
 
 		if elementBindings.checked then
-			local lens = elementBindings.checked
-			local newValue = lens.get()
+			local newValue = safe_get_binding_lens(elementBindings.checked)
 			if newValue ~= elementBindings.checked.value then
 				elementBindings.checked.value = newValue
 				element:SetAttribute("ignore-change", "")
@@ -426,7 +452,7 @@ function update_binding(elementBindings, indirectBindings, element)
 		end
 
 		if elementBindings.content then
-			local newValue = elementBindings.content.binding()
+			local newValue = safe_get_binding(elementBindings.content)
 			if newValue ~= elementBindings.content.value then
 				elementBindings.content.value = newValue
 				element.inner_rml = newValue
