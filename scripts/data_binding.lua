@@ -142,6 +142,49 @@ function bind_value_set(element, bindValue)
 		true)
 end
 
+function bind_submit_form(element)
+	local containerForm = element.parent_node
+	while containerForm ~= nil and containerForm.tag_name ~= "form" do
+		containerForm = containerForm.parent_node
+	end
+	if containerForm == nil then
+		return
+	end
+	if not containerForm:HasAttribute("bind-submit") then
+		containerForm:SetAttribute("bind-submit", "true")
+		containerForm:AddEventListener("submit", form_submit)
+	end
+end
+
+function bind_submit_value_set(element, bindValue)
+	element:AddEventListener("change",
+		function(event)
+			if not element:GetAttribute("ignore-change") then
+				element:SetAttribute("bind-submit-dirty", "")
+			end
+		end,
+		true)
+	bind_submit_form(element)
+end
+
+function form_submit(_, element)
+	for _, e in pairs(element.child_nodes) do
+		local submitValueBinding = e:GetAttribute("bind-submit-value") or e:GetAttribute("bind-submit-checked")
+		if submitValueBinding and e:HasAttribute("bind-submit-dirty") then
+			local value = Element.As.ElementFormControl(e).value
+			local success = xpcall(
+				function(src, value) select(2, make_binding(src)())(value) end,
+				error_handler,
+				submitValueBinding,
+				value)
+			if success then
+				e:RemoveAttribute("bind-submit-dirty")
+			end
+		end
+		form_submit(_, e)
+	end
+end
+
 function bind(
 	directBindings,
 	indirectBindings,
@@ -237,6 +280,24 @@ function bind(
 		end
 	end
 
+	local bindSubmitValue = element:GetAttribute("bind-submit-value")
+	if bindSubmitValue then
+		local get, set = make_binding(bindSubmitValue)()
+		elementBindings.submitValue = {get = get, set = set}
+		if not useBindingId then
+			bind_submit_value_set(element, elementBindings.value)
+		end
+	end
+
+	local bindSubmitChecked = element:GetAttribute("bind-submit-checked")
+	if bindSubmitChecked then
+		local get, set = make_binding(bindSubmitChecked)()
+		elementBindings.submitChecked = {get = get, set = set}
+		if not useBindingId then
+			bind_submit_value_set(element, elementBindings.checked)
+		end
+	end
+
 	if element:HasAttribute("bind") then
 		local bind = element:GetAttribute("bind")
 		if bind:len() == 0 then
@@ -326,6 +387,14 @@ function bind_for_child(
 		bind_value_set(element, elementBindings.checked)
 	end
 
+	if elementBindings.submitValue then
+		bind_submit_value_set(element, elementBindings.value)
+	end
+
+	if elementBindings.submitChecked then
+		bind_submit_value_set(element, elementBindings.checked)
+	end
+
 	elementBindings["for"] = nil
 	elementBindings.element = element
 	elementBindings.childBindings = {}
@@ -352,14 +421,22 @@ function bind_for_sub_element(
 		for event, binding in pairs(bindings.events or {}) do
 			element:AddEventListener(event, binding.binding, true)
 		end
-	end
 
-	if bindings and bindings.value then
-		bind_value_set(element, bindings.value)
-	end
+		if bindings.value then
+			bind_value_set(element, bindings.value)
+		end
 
-	if bindings and bindings.checked then
-		bind_value_set(element, bindings.checked)
+		if bindings.checked then
+			bind_value_set(element, bindings.checked)
+		end
+
+		if bindings.submitValue then
+			bind_submit_value_set(element, bindings.value)
+		end
+
+		if bindings.submitChecked then
+			bind_submit_value_set(element, bindings.checked)
+		end
 	end
 
 	if not bindings.bind and not bindings["for"] then
@@ -448,6 +525,32 @@ function update_binding(elementBindings, indirectBindings, element)
 				Element.As.ElementFormControlInput(element).checked = newValue == element:GetAttribute("value")
 				element:DispatchEvent("change", { value = newValue })
 				element:RemoveAttribute("ignore-change")
+			end
+		end
+
+		if elementBindings.submitValue then
+			local newValue = safe_get_binding_lens(elementBindings.submitValue)
+			if newValue ~= elementBindings.submitValue.value then
+				elementBindings.submitValue.value = newValue
+				if not element:HasAttribute("bind-submit-dirty") then
+					element:SetAttribute("ignore-change", "")
+					Element.As.ElementFormControl(element).value = newValue
+					element:DispatchEvent("change", { value = newValue })
+					element:RemoveAttribute("ignore-change")
+				end
+			end
+		end
+
+		if elementBindings.submitChecked then
+			local newValue = safe_get_binding_lens(elementBindings.submitChecked)
+			if newValue ~= elementBindings.submitChecked.value then
+				elementBindings.submitChecked.value = newValue
+				if not element:HasAttribute("bind-submit-dirty") then
+					element:SetAttribute("ignore-change", "")
+					Element.As.ElementFormControlInput(element).checked = newValue == element:GetAttribute("value")
+					element:DispatchEvent("change", { value = newValue })
+					element:RemoveAttribute("ignore-change")
+				end
 			end
 		end
 

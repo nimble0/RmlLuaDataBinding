@@ -147,6 +147,23 @@
 			test.assertEquals(name, "purp", "bind-value radio input")
 			test.assert(not radioInputElement1.checked, "bind-value radio input checked")
 			test.assert(radioInputElement2.checked, "bind-value radio input checked")
+
+			local preName = name
+			local preSensitivity = sensitivity
+			local textInputElement2 = Element.As.ElementFormControlInput(document:GetElementById("text-input-2"))
+			local selectInputElement2 = Element.As.ElementFormControlSelect(document:GetElementById("select-input-2"))
+			test.assertEquals(textInputElement2.value, name, "bind-submit-value text value")
+			test.assertEquals(selectInputElement2.value, tostring(sensitivity), "bind-submit-value select value")
+			textInputElement2.value = "beans"
+			textInputElement2:DispatchEvent("change", {value = "beans"})
+			selectInputElement2.selection = 5
+			update_bindings(document)
+			update_bindings(document)
+			test.assertEquals(name, preName, "bind-submit-value text before submit")
+			test.assertEquals(sensitivity, preSensitivity, "bind-submit-value select before submit")
+			Element.As.ElementForm(document:GetElementById("submit-form")):Submit()
+			test.assertEquals(name, "beans", "bind-submit-value text after submit")
+			test.assertEquals(sensitivity, 5, "bind-submit-value select after submit")
 		end
 	</script>
 </head>
@@ -184,6 +201,20 @@
 		<input id="checkbox-input" type="checkbox" value="pasta" bind-checked="data_binding.make_lens(_G, 'name')" /> Pasta
 		<input id="radio-input-1" type="radio" name="checky" value="blue" bind-checked="data_binding.make_lens(_G, 'name')" /> blue
 		<input id="radio-input-2" type="radio" name="checky" value="purp" bind-checked="data_binding.make_lens(_G, 'name')" /> purp
+	</form>
+	<form id="submit-form">
+		<input id="radio-input-3" type="radio" name="checky2" value="blue" bind-submit-checked="data_binding.make_lens(_G, 'name')" /> blue
+		<input id="radio-input-4" type="radio" name="checky2" value="purp" bind-submit-checked="data_binding.make_lens(_G, 'name')" /> purp
+		<select id="select-input-2" bind-submit-value="data_binding.make_number_lens(_G, 'sensitivity')">
+			<option value="1">1</option>
+			<option value="2">2</option>
+			<option value="3">3</option>
+			<option value="4">4</option>
+			<option value="5">5</option>
+			<option value="6">6</option>
+		</select>
+		<input id="text-input-2" bind-submit-value="data_binding.make_lens(_G, 'name')" type="text" />
+		<input id="submit-input" type="submit">apply</input>
 	</form>
 </body>
 </rml>
