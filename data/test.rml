@@ -123,6 +123,11 @@
 			update_bindings(document)
 			test.assertEquals(name, "beans", "bind-value text input")
 
+			local selectInputElement = document:GetElementById("select-input")
+			Element.As.ElementFormControlSelect(selectInputElement).selection = 2
+			update_bindings(document)
+			test.assertEquals(sensitivity, 2, "bind-value select input")
+
 			local checkboxInputElement = Element.As.ElementFormControlInput(document:GetElementById("checkbox-input"))
 			name = "pasta"
 			update_bindings(document)
@@ -171,6 +176,11 @@
 	<div bind-event-click="name = 'orange'">set name orange</div>
 	<input bind-value="data_binding.make_number_lens(_G, 'sensitivity')" type="text" />
 	<div>sensitivity + 1: <span bind="sensitivity + 1" /></div>
+	<select id="select-input" bind-value="data_binding.make_number_lens(_G, 'sensitivity')"">
+		<option value="1">1</option>
+		<option value="2">2</option>
+		<option value="3">3</option>
+	</select>
 	<form>
 		<input id="checkbox-input" type="checkbox" value="pasta" bind-checked="data_binding.make_lens(_G, 'name')" /> Pasta
 		<input id="radio-input-1" type="radio" name="checky" value="blue" bind-checked="data_binding.make_lens(_G, 'name')" /> blue
