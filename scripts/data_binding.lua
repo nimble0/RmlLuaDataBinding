@@ -460,6 +460,9 @@ function update_binding(elementBindings, indirectBindings, element)
 				forElement:SetAttribute(k, v)
 			end
 			forElement:RemoveAttribute("bind-for")
+			if element.tag_name == "option" then
+				forElement:RemoveAttribute("selected")
+			end
 			forElement:SetAttribute("bind-for-parent", id)
 			forElement.class_name = element.class_name
 			forElement:SetClass("bind-for-base", false)
