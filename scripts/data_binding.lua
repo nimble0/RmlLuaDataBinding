@@ -1,5 +1,14 @@
 local bindingId = 0
 
+-- Lower priority values are updated first
+-- Default priority is 1
+-- Binding priority within bind-for elements only applies relative to other
+-- elements within the bind-for.
+local elementBindingPriorities = {
+	option = 1,
+	select = 2,
+}
+
 function error_handler(m)
 	print(m)
 end
@@ -206,7 +215,7 @@ function bind(
 			bindingId = bindingId + 1
 			element:SetAttribute("bind-id", id)
 
-			directBindings[element] = {
+			directBindings[elementBindingPriorities[element.tag_name] or 1][element] = {
 				["for"] = {
 					binding = make_binding(binding),
 					variables = variables,
@@ -321,7 +330,7 @@ function bind(
 			end
 			indirectBindings[id] = elementBindings
 		else
-			directBindings[element] = elementBindings
+			directBindings[elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
 		end
 	end
 end
@@ -398,6 +407,9 @@ function bind_for_child(
 	elementBindings["for"] = nil
 	elementBindings.element = element
 	elementBindings.childBindings = {}
+	for _, priority in pairs(elementBindingPriorities) do
+		elementBindings.childBindings[priority] = {}
+	end
 	if not element.bind then
 		for _, child in pairs(element.child_nodes) do
 			bind_for_sub_element(elementBindings.childBindings, indirectBindings, child)
@@ -416,7 +428,7 @@ function bind_for_sub_element(
 	local bindings = clone_binding(indirectBindings[id] or {})
 
 	if next(bindings) ~= nil then
-		directBindings[element] = bindings
+		directBindings[elementBindingPriorities[element.tag_name] or 1][element] = bindings
 
 		for event, binding in pairs(bindings.events or {}) do
 			element:AddEventListener(event, binding.binding, true)
@@ -481,10 +493,12 @@ function update_binding(elementBindings, indirectBindings, element)
 			_G[variables.index] = i
 			_G[variables.it] = newValue
 
-			update_binding(forElementBindings, indirectBindings, forElementBindings.element)
-			for childElement, childBindings in pairs(forElementBindings.childBindings) do
-				update_binding(childBindings, indirectBindings, childElement)
+			for _, bindingsGroup in pairs(forElementBindings.childBindings) do
+				for childElement, childBindings in pairs(bindingsGroup) do
+					update_binding(childBindings, indirectBindings, childElement)
+				end
 			end
+			update_binding(forElementBindings, indirectBindings, forElementBindings.element)
 		end
 		_G[variables.index] = index_
 		_G[variables.it] = it_
@@ -569,13 +583,18 @@ end
 
 function make_bindings(bindings, element)
 	bindings.direct = {}
+	for _, priority in pairs(elementBindingPriorities) do
+		bindings.direct[priority] = {}
+	end
 	bindings.indirect = {}
 	bind(bindings.direct, bindings.indirect, element)
 end
 
 function update_bindings(bindings)
-	for element, elementBindings in pairs(bindings.direct) do
-		update_binding(elementBindings, bindings.indirect, element)
+	for _, bindingsGroup in pairs(bindings.direct) do
+		for element, elementBindings in pairs(bindingsGroup) do
+			update_binding(elementBindings, bindings.indirect, element)
+		end
 	end
 end
 
