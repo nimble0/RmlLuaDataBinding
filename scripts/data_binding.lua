@@ -331,6 +331,7 @@ function bind(
 			indirectBindings[id] = elementBindings
 		else
 			directBindings[elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
+			xpcall(data_binding.onCreateElement, error_handler, element)
 		end
 	end
 end
@@ -480,8 +481,10 @@ function update_binding(elementBindings, indirectBindings, element)
 			forElement:SetClass("bind-for-base", false)
 			forElement.inner_rml = element.inner_rml
 			bind_for_child(elements, indirectBindings, forElement)
+			xpcall(data_binding.onCreateElement, error_handler, forElement)
 		end
 		while #newValues < #elements do
+			xpcall(data_binding.onDestroyElement, error_handler, elements[#elements].element)
 			element.parent_node:RemoveChild(elements[#elements].element)
 			table.remove(elements, #elements)
 		end
@@ -598,11 +601,15 @@ function update_bindings(bindings)
 	end
 end
 
-return {
+local data_binding = {
 	make_bindings = make_bindings,
 	update_bindings = update_bindings,
 	make_lens = make_lens,
 	make_number_lens = make_number_lens,
 	make_boolean_lens = make_boolean_lens,
 	make_enum_lens = make_enum_lens,
+	onCreateElement = nil,
+	onDestroyElement = nil,
 }
+
+return data_binding
