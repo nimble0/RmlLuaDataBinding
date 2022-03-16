@@ -15,7 +15,7 @@
 		.right { float: right; }
 	</style>
 	<script>
-		bindings = {}
+		bindings = nil
 
 		title = "Dynamic test"
 		options = {
@@ -58,15 +58,11 @@
 		lastClickEvent = ""
 
 		function make_bindings(document)
-			data_binding.make_bindings(bindings, document)
-		end
-
-		function update_bindings(document)
-			data_binding.update_bindings(bindings)
+			bindings = data_binding.make_bindings(document)
 		end
 
 		function run_tests(document)
-			update_bindings(document)
+			bindings:update()
 
 			local titleElement = document:GetElementById("title")
 			test.assertEquals(titleElement.inner_rml, title, "bind")
@@ -119,31 +115,31 @@
 			local textInputElement = document:GetElementById("text-input")
 			textInputElement.value = "beans"
 			textInputElement:DispatchEvent("change", {value = "beans"})
-			update_bindings(document)
+			bindings:update()
 			test.assertEquals(name, "beans", "bind-value text input")
 
 			local selectInputElement = document:GetElementById("select-input")
 			Element.As.ElementFormControlSelect(selectInputElement).selection = 2
-			update_bindings(document)
+			bindings:update()
 			test.assertEquals(sensitivity, 2, "bind-value select input")
 
 			local checkboxInputElement = Element.As.ElementFormControlInput(document:GetElementById("checkbox-input"))
 			name = "pasta"
-			update_bindings(document)
+			bindings:update()
 			test.assert(checkboxInputElement.checked, "bind-value checkbox input checked")
 			checkboxInputElement.checked = false
-			update_bindings(document)
+			bindings:update()
 			test.assertEquals(name, "", "bind-value checkbox input uncheck")
 
 			local radioInputElement1 = Element.As.ElementFormControlInput(document:GetElementById("radio-input-1"))
 			local radioInputElement2 = Element.As.ElementFormControlInput(document:GetElementById("radio-input-2"))
 			radioInputElement1.checked = true
-			update_bindings(document)
+			bindings:update()
 			test.assertEquals(name, "blue", "bind-value radio input")
 			test.assert(radioInputElement1.checked, "bind-value radio input checked")
 			test.assert(not radioInputElement2.checked, "bind-value radio input checked")
 			radioInputElement2.checked = true
-			update_bindings(document)
+			bindings:update()
 			test.assertEquals(name, "purp", "bind-value radio input")
 			test.assert(not radioInputElement1.checked, "bind-value radio input checked")
 			test.assert(radioInputElement2.checked, "bind-value radio input checked")
@@ -157,8 +153,7 @@
 			textInputElement2.value = "beans"
 			textInputElement2:DispatchEvent("change", {value = "beans"})
 			selectInputElement2.selection = 5
-			update_bindings(document)
-			update_bindings(document)
+			bindings:update()
 			test.assertEquals(name, preName, "bind-submit-value text before submit")
 			test.assertEquals(sensitivity, preSensitivity, "bind-submit-value select before submit")
 			Element.As.ElementForm(document:GetElementById("submit-form")):Submit()
@@ -169,7 +164,7 @@
 </head>
 <body id="body" onload="testDocument = document">
 	<button onclick="make_bindings(document)">make bindings</button>
-	<button onclick="update_bindings(document)">update bindings</button>
+	<button onclick="bindings:update()">update bindings</button>
 	<h1 id="title" bind="title" bind-class="'dynamic-'..'title'" bind-event-click="print('click test1') lastClickEvent = 'test1'">Test</h1>
 	<div id="main-menu-wrapper">
 		<div bind-class="'a-class'">some text</div>
@@ -187,25 +182,25 @@
 	</div>
 	<img id="img" src="icons/health-icon.png" bind-attribute-src="imageSrc" />
 	<for2 id="bloop" bind-for="a in test3" bind="a" />
-	<input id="text-input" bind-value="data_binding.make_lens(_G, 'name')" type="text" />
+	<input id="text-input" bind-value="data_binding.make_lens({parent = _G, key = 'name'})" type="text" />
 	<div>name: <span bind="name" /></div>
 	<div bind-event-click="name = 'orange'">set name orange</div>
-	<input bind-value="data_binding.make_number_lens(_G, 'sensitivity')" type="text" />
+	<input bind-value="data_binding.make_number_lens({parent = _G, key = 'sensitivity'})" type="text" />
 	<div>sensitivity + 1: <span bind="sensitivity + 1" /></div>
-	<select id="select-input" bind-value="data_binding.make_number_lens(_G, 'sensitivity')"">
+	<select id="select-input" bind-value="data_binding.make_number_lens({parent = _G, key = 'sensitivity'})">
 		<option value="1">1</option>
 		<option value="2">2</option>
 		<option value="3">3</option>
 	</select>
 	<form>
-		<input id="checkbox-input" type="checkbox" value="pasta" bind-checked="data_binding.make_lens(_G, 'name')" /> Pasta
-		<input id="radio-input-1" type="radio" name="checky" value="blue" bind-checked="data_binding.make_lens(_G, 'name')" /> blue
-		<input id="radio-input-2" type="radio" name="checky" value="purp" bind-checked="data_binding.make_lens(_G, 'name')" /> purp
+		<input id="checkbox-input" type="checkbox" value="pasta" bind-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> Pasta
+		<input id="radio-input-1" type="radio" name="checky" value="blue" bind-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> blue
+		<input id="radio-input-2" type="radio" name="checky" value="purp" bind-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> purp
 	</form>
 	<form id="submit-form">
-		<input id="radio-input-3" type="radio" name="checky2" value="blue" bind-submit-checked="data_binding.make_lens(_G, 'name')" /> blue
-		<input id="radio-input-4" type="radio" name="checky2" value="purp" bind-submit-checked="data_binding.make_lens(_G, 'name')" /> purp
-		<select id="select-input-2" bind-submit-value="data_binding.make_number_lens(_G, 'sensitivity')">
+		<input id="radio-input-3" type="radio" name="checky2" value="blue" bind-submit-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> blue
+		<input id="radio-input-4" type="radio" name="checky2" value="purp" bind-submit-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> purp
+		<select id="select-input-2" bind-submit-value="data_binding.make_number_lens({parent = _G, key = 'sensitivity'})">
 			<option value="1">1</option>
 			<option value="2">2</option>
 			<option value="3">3</option>
@@ -213,7 +208,7 @@
 			<option value="5">5</option>
 			<option value="6">6</option>
 		</select>
-		<input id="text-input-2" bind-submit-value="data_binding.make_lens(_G, 'name')" type="text" />
+		<input id="text-input-2" bind-submit-value="data_binding.make_lens({parent = _G, key = 'name'})" type="text" />
 		<input id="submit-input" type="submit">apply</input>
 	</form>
 </body>

@@ -1,3 +1,7 @@
+local bindings = require("data_binding_bindings")
+local lenses = require("data_binding_lenses")
+
+local allBindings = {}
 local bindingId = 0
 
 -- Lower priority values are updated first
@@ -9,607 +13,159 @@ local elementBindingPriorities = {
 	select = 2,
 }
 
-function error_handler(m)
+local function error_handler(m)
 	print(m)
 end
 
-function consecutive_error_handler(m) end
 
-function safe_get_binding(binding)
-	local errorHandler = error_handler
-	-- Don't spam log with the same errors
-	if binding.errored then
-		errorHandler = consecutive_error_handler
+local Bindings = {}
+function Bindings:new(element)
+	o = o or {}
+	setmetatable(o, self)
+	self.__index = self
+	o.direct = {}
+	for _, priority in pairs(elementBindingPriorities) do
+		o.direct[priority] = {}
 	end
-	local success, value = xpcall(binding.binding, errorHandler)
-	binding.errored = not success
-	return value
+	o.indirect = {}
+
+	bindings.currentBindings = o
+	o:bind(element)
+	bindings.currentBindings = nil
+
+	return o
 end
 
-function safe_get_binding_lens(binding)
-	local errorHandler = error_handler
-	-- Don't spam log with the same errors
-	if binding.errored then
-		errorHandler = consecutive_error_handler
-	end
-	local success, value = xpcall(binding.get, errorHandler)
-	binding.errored = not success
-	return value
-end
-
-function trim(s)
-   return s:match'^()%s*$' and '' or s:match'^%s*(.*%S)'
-end
-
-function split(s, d)
-	local result = {}
-	local i = 1
-	local j, k = s:find(d, i)
-	while j do
-		table.insert(result, s:sub(i, j - 1))
-		i = k + 1
-		j, k = s:find(d, i)
-	end
-	table.insert(result, s:sub(i))
-	return result
-end
-
-function make_binding(source)
-	local command, error = load("return " .. source)
-	if command == nil then
-		command, error = load(source)
-	end
-
-	return command, error
-end
-
-function parse_bind_for(value)
-	local a, b = value:find("%sin%s")
-	local variables_ = split(value:sub(1, a), ",")
-
-	local variables = nil
-	if #variables_ == 0 then
-		variables = {
-			index = "i",
-			it = "it"
-		}
-	elseif #variables_ == 1 then
-		variables = {
-			index = "i",
-			it = trim(variables_[1])
-		}
-	else
-		variables = {
-			index = trim(variables_[1]),
-			it = trim(variables_[2])
-		}
-	end
-	local eval = value:sub(b + 1)
-
-	return variables, eval
-end
-
-function make_lens(table, key)
-	return
-		function() return table[key] end,
-		function(v) table[key] = v end
-end
-
-function make_number_lens(table, key)
-	return
-		function() return table[key] end,
-		function(v)
-			local v2 = tonumber(v)
-			if v2 then
-				table[key] = v2
+function Bindings:update()
+	bindings.currentBindings = self
+	for _, bindingsGroup in pairs(self.direct) do
+		for element, elementBindings in pairs(bindingsGroup) do
+			for i = 1, #elementBindings do
+				elementBindings[i]:update()
 			end
 		end
-end
-
-function make_float_lens(table, key, format)
-	return
-		function() return string.format(format, table[key]) end,
-		function(v)
-			local v2 = tonumber(v)
-			if v2 then
-				table[key] = v2
-			end
-		end
-end
-
-function make_boolean_lens(table, key)
-	return
-		function() return table[key] end,
-		function(v)
-			if v:len() > 0 then
-				table[key] = true
-			else
-				table[key] = false
-			end
-		end
-end
-
-function make_enum_lens(table, key, enum)
-	return
-		function() return enum[table[key]] end,
-		function(v)
-			local v2 = enum[v]
-			if v2 then
-				table[key] = enum[v]
-			end
-		end
-end
-
-function bind_value_set(element, bindValue)
-	element:AddEventListener("change",
-		function(event)
-			if not element:GetAttribute("ignore-change") then
-				bindValue.set(event.parameters.value)
-				bindValue.value = bindValue.get()
-			end
-		end,
-		true)
-end
-
-function bind_submit_form(element)
-	local containerForm = element.parent_node
-	while containerForm ~= nil and containerForm.tag_name ~= "form" do
-		containerForm = containerForm.parent_node
 	end
-	if containerForm == nil then
-		return
-	end
-	if not containerForm:HasAttribute("bind-submit") then
-		containerForm:SetAttribute("bind-submit", "true")
-		containerForm:AddEventListener("submit", form_submit)
-	end
+	bindings.currentBindings = nil
 end
 
-function bind_submit_value_set(element, bindValue)
-	element:AddEventListener("change",
-		function(event)
-			if not element:GetAttribute("ignore-change") then
-				element:SetAttribute("bind-submit-dirty", "")
-			end
-		end,
-		true)
-	bind_submit_form(element)
-end
-
-function form_submit(_, element)
-	for _, e in pairs(element.child_nodes) do
-		local submitValueBinding = e:GetAttribute("bind-submit-value") or e:GetAttribute("bind-submit-checked")
-		if submitValueBinding and e:HasAttribute("bind-submit-dirty") then
-			local value = Element.As.ElementFormControl(e).value
-			local success = xpcall(
-				function(src, value) select(2, make_binding(src)())(value) end,
-				error_handler,
-				submitValueBinding,
-				value)
-			if success then
-				e:RemoveAttribute("bind-submit-dirty")
-			end
-		end
-		form_submit(_, e)
-	end
-end
-
-function bind(
-	directBindings,
-	indirectBindings,
+function Bindings:bind(
 	element,
 	useBindingId
 )
-	local elementBindings = {}
+	local abstractElementBindings = {}
 
-	local bindingIdSet = false
-	local id = false
-
+	local useForBindingId = false
 	if element:HasAttribute("bind-for") then
-		local variables, binding = parse_bind_for(element:GetAttribute("bind-for"))
 		element:SetClass("bind-for-base", true)
+		local abstractBinding = bindings.AbstractForBinding:new(element, self.indirect)
 
-		-- If useBindingId is true then bind-id will be set further down
 		if not useBindingId then
-			id = bindingId
+			self.direct[elementBindingPriorities[element.tag_name] or 1][element] = {abstractBinding:apply(element)}
+		else
+			local id = bindingId
 			bindingId = bindingId + 1
 			element:SetAttribute("bind-id", id)
 
-			directBindings[elementBindingPriorities[element.tag_name] or 1][element] = {
-				["for"] = {
-					binding = make_binding(binding),
-					variables = variables,
-					elements = {}
-				}
-			}
-
-			-- Other binding on this element will apply to its for elements
-			useBindingId = true
-			-- Don't set the binding id again below
-			bindingItSet = true
-		else
-			elementBindings["for"] = {
-				binding = make_binding(binding),
-				variables = variables,
-				elements = {}
-			}
+			self.indirect[id] = {abstractBinding}
 		end
 
-		for _, child in pairs(element.child_nodes) do
-			bind(directBindings, indirectBindings, child, true)
-		end
+		-- Other binding on this element will only apply to its for elements
+		useBindingId = true
+		useForBindingId = true
 	end
 
-	local bindClass = element:GetAttribute("bind-class")
-	if bindClass then
-		element:SetAttribute("fixed-class", element.class_name)
-		elementBindings.class = {binding = make_binding(bindClass)}
+	if element:HasAttribute("bind-class") then
+		table.insert(abstractElementBindings, bindings.AbstractClassBinding:new(element))
 	end
 
-	local attributes = {}
 	for attribute, bind in pairs(element.attributes) do
 		if attribute:sub(1, 15) == "bind-attribute-" then
 			local bindAttribute = attribute:sub(16)
-			attributes[bindAttribute] = {binding = make_binding(bind)}
+			table.insert(abstractElementBindings, bindings.AbstractAttributeBinding:new(element, bindAttribute))
 		end
 	end
-	if next(attributes) ~= nil then
-		elementBindings.attributes = attributes
-	end
 
-	local events = {}
 	for attribute, bind in pairs(element.attributes) do
 		if attribute:sub(1, 11) == "bind-event-" then
 			local event = attribute:sub(12)
-			events[event] = {binding = bind}
-			if not useBindingId then
-				element:AddEventListener(event, bind, true)
-			end
-		end
-	end
-	if next(events) ~= nil then
-		elementBindings.events = events
-	end
-
-	local bindValue = element:GetAttribute("bind-value")
-	if bindValue then
-		local get, set = make_binding(bindValue)()
-		elementBindings.value = {get = get, set = set}
-		if not useBindingId then
-			bind_value_set(element, elementBindings.value)
+			table.insert(abstractElementBindings, bindings.AbstractEventBinding:new(element, event))
 		end
 	end
 
-	local bindChecked = element:GetAttribute("bind-checked")
-	if bindChecked then
-		local get, set = make_binding(bindChecked)()
-		elementBindings.checked = {get = get, set = set}
-		if not useBindingId then
-			bind_value_set(element, elementBindings.checked)
-		end
+	if element:HasAttribute("bind-value") then
+		table.insert(abstractElementBindings, bindings.AbstractValueBinding:new(element))
 	end
 
-	local bindSubmitValue = element:GetAttribute("bind-submit-value")
-	if bindSubmitValue then
-		local get, set = make_binding(bindSubmitValue)()
-		elementBindings.submitValue = {get = get, set = set}
-		if not useBindingId then
-			bind_submit_value_set(element, elementBindings.value)
-		end
+	if element:HasAttribute("bind-checked") then
+		table.insert(abstractElementBindings, bindings.AbstractCheckedBinding:new(element))
 	end
 
-	local bindSubmitChecked = element:GetAttribute("bind-submit-checked")
-	if bindSubmitChecked then
-		local get, set = make_binding(bindSubmitChecked)()
-		elementBindings.submitChecked = {get = get, set = set}
-		if not useBindingId then
-			bind_submit_value_set(element, elementBindings.checked)
-		end
+	if element:HasAttribute("bind-submit-value") then
+		table.insert(abstractElementBindings, bindings.AbstractSubmitValueBinding:new(element))
+	end
+
+	if element:HasAttribute("bind-submit-checked") then
+		table.insert(abstractElementBindings, bindings.AbstractSubmitCheckedBinding:new(element))
 	end
 
 	if element:HasAttribute("bind") then
-		local bind = element:GetAttribute("bind")
-		if bind:len() == 0 then
-			elementBindings.content = {binding = make_binding(element.inner_rml)}
-		else
-			elementBindings.content = {binding = make_binding(bind)}
-		end
+		table.insert(abstractElementBindings, bindings.AbstractContentBinding:new(element))
 	-- Can't nest content bindings because inner_rml is replaced by a content binding
 	else
 		for _, child in pairs(element.child_nodes) do
-			bind(directBindings, indirectBindings, child, useBindingId)
+			self:bind(child, useBindingId)
 		end
 	end
 
-	if next(elementBindings) ~= nil then
-		if useBindingId then
-			if not id then
-				id = bindingId
-				bindingId = bindingId + 1
-				element:SetAttribute("bind-id", id)
-			end
-			indirectBindings[id] = elementBindings
+	if #abstractElementBindings > 0 then
+		if useForBindingId then
+			local id = bindingId
+			bindingId = bindingId + 1
+			element:SetAttribute("bind-for-id", id)
+			self.indirect[id] = abstractElementBindings
+		elseif useBindingId then
+			local id = bindingId
+			bindingId = bindingId + 1
+			element:SetAttribute("bind-id", id)
+			self.indirect[id] = abstractElementBindings
 		else
-			directBindings[elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
-			xpcall(data_binding.onCreateElement, error_handler, element)
-		end
-	end
-end
-
-function clone_binding(binding)
-	local clone = {}
-
-	for k, v in pairs(binding) do
-		local bindingClone = {}
-		for k2, v2 in pairs(v) do
-			bindingClone[k2] = v2
-		end
-		clone[k] = bindingClone
-	end
-
-	if binding["for"] then
-		clone["for"].elements = {}
-	end
-
-	if binding.attributes then
-		clone.attributes = {}
-		for k, v in pairs(binding.attributes) do
-			local bindingClone = {}
-			for k2, v2 in pairs(v) do
-				bindingClone[k2] = v2
-			end
-			clone.attributes[k] = bindingClone
-		end
-	end
-
-	if binding.events then
-		clone.events = {}
-		for k, v in pairs(binding.events) do
-			local bindingClone = {}
-			for k2, v2 in pairs(v) do
-				bindingClone[k2] = v2
-			end
-			clone.events[k] = bindingClone
-		end
-	end
-
-	return clone
-end
-
-function bind_for_child(
-	directBindings,
-	indirectBindings,
-	element
-)
-	local id = tonumber(element:GetAttribute("bind-id"))
-
-	local elementBindings = clone_binding(indirectBindings[id] or {})
-
-	for event, binding in pairs(elementBindings.events or {}) do
-		element:AddEventListener(event, binding.binding, true)
-	end
-
-	if elementBindings.value then
-		bind_value_set(element, elementBindings.value)
-	end
-
-	if elementBindings.checked then
-		bind_value_set(element, elementBindings.checked)
-	end
-
-	if elementBindings.submitValue then
-		bind_submit_value_set(element, elementBindings.value)
-	end
-
-	if elementBindings.submitChecked then
-		bind_submit_value_set(element, elementBindings.checked)
-	end
-
-	elementBindings["for"] = nil
-	elementBindings.element = element
-	elementBindings.childBindings = {}
-	for _, priority in pairs(elementBindingPriorities) do
-		elementBindings.childBindings[priority] = {}
-	end
-	if not element.bind then
-		for _, child in pairs(element.child_nodes) do
-			bind_for_sub_element(elementBindings.childBindings, indirectBindings, child)
-		end
-	end
-
-	table.insert(directBindings, elementBindings)
-end
-
-function bind_for_sub_element(
-	directBindings,
-	indirectBindings,
-	element
-)
-	local id = tonumber(element:GetAttribute("bind-id"))
-	local bindings = clone_binding(indirectBindings[id] or {})
-
-	if next(bindings) ~= nil then
-		directBindings[elementBindingPriorities[element.tag_name] or 1][element] = bindings
-
-		for event, binding in pairs(bindings.events or {}) do
-			element:AddEventListener(event, binding.binding, true)
-		end
-
-		if bindings.value then
-			bind_value_set(element, bindings.value)
-		end
-
-		if bindings.checked then
-			bind_value_set(element, bindings.checked)
-		end
-
-		if bindings.submitValue then
-			bind_submit_value_set(element, bindings.value)
-		end
-
-		if bindings.submitChecked then
-			bind_submit_value_set(element, bindings.checked)
-		end
-	end
-
-	if not bindings.bind and not bindings["for"] then
-		for _, child in pairs(element.child_nodes) do
-			bind_for_sub_element(directBindings, indirectBindings, child)
-		end
-	end
-end
-
-function update_binding(elementBindings, indirectBindings, element)
-	if elementBindings["for"] then
-		local variables = elementBindings["for"].variables
-		local newValues = safe_get_binding(elementBindings["for"]) or {}
-		local elements = elementBindings["for"].elements
-		local id = element:GetAttribute("bind-id")
-
-		while #newValues > #elements do
-			element.parent_node:InsertBefore(element.owner_document:CreateElement(element.tag_name), element)
-			local forElement = element.previous_sibling
-			for k, v in pairs(element.attributes) do
-				forElement:SetAttribute(k, v)
-			end
-			forElement:RemoveAttribute("bind-for")
-			if element.tag_name == "option" then
-				forElement:RemoveAttribute("selected")
-			end
-			forElement:SetAttribute("bind-for-parent", id)
-			forElement.class_name = element.class_name
-			forElement:SetClass("bind-for-base", false)
-			forElement.inner_rml = element.inner_rml
-			bind_for_child(elements, indirectBindings, forElement)
-			xpcall(data_binding.onCreateElement, error_handler, forElement)
-		end
-		while #newValues < #elements do
-			xpcall(data_binding.onDestroyElement, error_handler, elements[#elements].element)
-			element.parent_node:RemoveChild(elements[#elements].element)
-			table.remove(elements, #elements)
-		end
-
-		local index_ = _G[variables.index]
-		local it_ = _G[variables.it]
-		for i, newValue in pairs(newValues) do
-			local forElementBindings = elements[i]
-			_G[variables.index] = i
-			_G[variables.it] = newValue
-
-			for _, bindingsGroup in pairs(forElementBindings.childBindings) do
-				for childElement, childBindings in pairs(bindingsGroup) do
-					update_binding(childBindings, indirectBindings, childElement)
+			local elementBindings = {}
+			for i = 1, #abstractElementBindings do
+				local elementBinding = abstractElementBindings[i]:apply(element)
+				if elementBinding then
+					table.insert(elementBindings, elementBinding)
 				end
 			end
-			update_binding(forElementBindings, indirectBindings, forElementBindings.element)
-		end
-		_G[variables.index] = index_
-		_G[variables.it] = it_
-	else
-		if elementBindings.class then
-			local newValue = safe_get_binding(elementBindings.class)
-			if newValue ~= elementBindings.class.value then
-				elementBindings.class.value = newValue
-				local fixedClass = element:GetAttribute("fixed_class")
-				if not fixedClass then
-					fixedClass = ""
-				end
-				element.class_name = fixedClass .. " " .. newValue
-			end
-		end
-
-		for attribute, binding in pairs(elementBindings.attributes or {}) do
-			local newValue = safe_get_binding(binding)
-			if newValue ~= binding.value then
-				binding.value = newValue
-				element:SetAttribute(attribute, newValue)
-			end
-		end
-
-		if elementBindings.value then
-			local newValue = safe_get_binding_lens(elementBindings.value)
-			if newValue ~= elementBindings.value.value then
-				elementBindings.value.value = newValue
-				element:SetAttribute("ignore-change", "")
-				Element.As.ElementFormControl(element).value = newValue
-				element:DispatchEvent("change", { value = newValue })
-				element:RemoveAttribute("ignore-change")
-			end
-		end
-
-		if elementBindings.checked then
-			local newValue = safe_get_binding_lens(elementBindings.checked)
-			if newValue ~= elementBindings.checked.value then
-				elementBindings.checked.value = newValue
-				element:SetAttribute("ignore-change", "")
-				Element.As.ElementFormControlInput(element).checked = newValue == element:GetAttribute("value")
-				element:DispatchEvent("change", { value = newValue })
-				element:RemoveAttribute("ignore-change")
-			end
-		end
-
-		if elementBindings.submitValue then
-			local newValue = safe_get_binding_lens(elementBindings.submitValue)
-			if newValue ~= elementBindings.submitValue.value then
-				elementBindings.submitValue.value = newValue
-				if not element:HasAttribute("bind-submit-dirty") then
-					element:SetAttribute("ignore-change", "")
-					Element.As.ElementFormControl(element).value = newValue
-					element:DispatchEvent("change", { value = newValue })
-					element:RemoveAttribute("ignore-change")
-				end
-			end
-		end
-
-		if elementBindings.submitChecked then
-			local newValue = safe_get_binding_lens(elementBindings.submitChecked)
-			if newValue ~= elementBindings.submitChecked.value then
-				elementBindings.submitChecked.value = newValue
-				if not element:HasAttribute("bind-submit-dirty") then
-					element:SetAttribute("ignore-change", "")
-					Element.As.ElementFormControlInput(element).checked = newValue == element:GetAttribute("value")
-					element:DispatchEvent("change", { value = newValue })
-					element:RemoveAttribute("ignore-change")
-				end
-			end
-		end
-
-		if elementBindings.content then
-			local newValue = safe_get_binding(elementBindings.content)
-			if newValue ~= elementBindings.content.value then
-				elementBindings.content.value = newValue
-				element.inner_rml = newValue
+			self.direct[elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
+			if data_binding.onCreateElement then
+				xpcall(data_binding.onCreateElement, error_handler, element)
 			end
 		end
 	end
 end
 
-function make_bindings(bindings, element)
-	bindings.direct = {}
-	for _, priority in pairs(elementBindingPriorities) do
-		bindings.direct[priority] = {}
-	end
-	bindings.indirect = {}
-	bind(bindings.direct, bindings.indirect, element)
+local function make_bindings(element)
+	local bindings = Bindings:new(element)
+	table.insert(allBindings, bindings)
+	return bindings
 end
 
-function update_bindings(bindings)
-	for _, bindingsGroup in pairs(bindings.direct) do
-		for element, elementBindings in pairs(bindingsGroup) do
-			update_binding(elementBindings, bindings.indirect, element)
-		end
-	end
-end
+bindings.error_handler = error_handler
+bindings.elementBindingPriorities = elementBindingPriorities
 
-local data_binding = {
+
+return {
 	make_bindings = make_bindings,
-	update_bindings = update_bindings,
-	make_lens = make_lens,
-	make_number_lens = make_number_lens,
-	make_boolean_lens = make_boolean_lens,
-	make_enum_lens = make_enum_lens,
+	make_lens = lenses.make_lens,
+	make_number_lens = lenses.make_number_lens,
+	make_float_lens = lenses.make_float_lens,
+	make_boolean_lens = lenses.make_boolean_lens,
+	make_enum_lens = lenses.make_enum_lens,
 	onCreateElement = nil,
 	onDestroyElement = nil,
-}
 
-return data_binding
+	make_variable_dirtyable = make_variable_dirtyable,
+	dirty_variable = dirty_variable,
+
+	R = bindings.R,
+}
