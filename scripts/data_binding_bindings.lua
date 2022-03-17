@@ -1,18 +1,7 @@
 local module = {}
 
-local function consecutive_error_handler() end
+local reference = require("data_binding_reference")
 
-
-local function safe_get_binding(binding)
-	local errorHandler = module.error_handler
-	-- Don't spam log with the same errors
-	if binding.errored then
-		errorHandler = consecutive_error_handler
-	end
-	local success, value = xpcall(binding.binding, errorHandler)
-	binding.errored = not success
-	return value
-end
 
 local function trim(s)
    return s:match'^()%s*$' and '' or s:match'^%s*(.*%S)'
@@ -62,7 +51,7 @@ local function parse_bind_for(value)
 end
 
 local function bind_value_set(element, binding)
-	local currentBindings = module.currentBindings
+	local currentBindings = reference.currentBindings
 	element:AddEventListener("change",
 		function(event)
 			if not element:GetAttribute("ignore-change") then
@@ -107,11 +96,15 @@ local function bind_submit_form(element)
 end
 
 local function bind_submit_value_set(element, bindValue)
-	local currentBindings = module.currentBindings
+	local currentBindings = reference.currentBindings
 	element:AddEventListener("change",
 		function(event)
 			if not element:GetAttribute("ignore-change") then
 				element:SetAttribute("bind-submit-dirty", "")
+				local oldCurrentBindings = reference.currentBindings
+				reference.currentBindings = currentBindings
+				bindValue:clearVariables()
+				reference.currentBindings = oldCurrentBindings
 			end
 		end,
 		true)
@@ -190,20 +183,48 @@ local function bind_for_child(
 end
 
 
+local WeakTable = { __mode = "kv" }
+
 local Binding = {}
 function Binding:new(o)
 	o = o or {}
 	setmetatable(o, self)
 	self.__index = self
+	o.variables = {}
+	setmetatable(o.variables, WeakTable)
 	return o
 end
 
+function Binding:clearVariables()
+	reference.clear_dependencies(self)
+end
+
 function Binding:update() end
+function Binding:singleUpdate()
+	self:updateChainUp({})
+end
+function Binding:updateChainUp(chain)
+	if self.parent then
+		table.insert(chain, { binding = self, index = self.parentIndex })
+		self.parent:updateChainUp(chain)
+	else
+		self:updateChainDown(chain)
+	end
+end
+function Binding:updateChainDown(chain)
+	assert(#chain == 0)
+	self:update()
+end
 
 
 local ContentBinding = Binding:new()
 function ContentBinding:update()
-	self.element.inner_rml = tostring(safe_get_binding(self))
+	self:clearVariables()
+	reference.currentBinding = self
+	local _, value = xpcall(self.binding, module.error_handler)
+	reference.currentBinding = nil
+
+	self.element.inner_rml = tostring(value)
 end
 
 local AbstractContentBinding = {}
@@ -228,7 +249,12 @@ end
 
 local ClassBinding = Binding:new()
 function ClassBinding:update()
-	self.element.class_name = self.fixedClass .. " " .. tostring(safe_get_binding(self))
+	self:clearVariables()
+	reference.currentBinding = self
+	local _, value = xpcall(self.binding, module.error_handler)
+	reference.currentBinding = nil
+
+	self.element.class_name = self.fixedClass .. " " .. tostring(value)
 end
 
 local AbstractClassBinding = {}
@@ -249,7 +275,12 @@ end
 
 local AttributeBinding = Binding:new()
 function AttributeBinding:update()
-	self.element:SetAttribute(self.attribute, tostring(safe_get_binding(self)))
+	self:clearVariables()
+	reference.currentBinding = self
+	local _, value = xpcall(self.binding, module.error_handler)
+	reference.currentBinding = nil
+
+	self.element:SetAttribute(self.attribute, tostring(value))
 end
 
 local AbstractAttributeBinding = {}
@@ -288,11 +319,14 @@ end
 
 local ValueBinding = Binding:new()
 function ValueBinding:update()
-	local newValue = tostring(safe_get_binding(self))
+	self:clearVariables()
+	reference.currentBinding = self
+	local _, value = xpcall(self.binding, module.error_handler)
+	reference.currentBinding = nil
 
 	self.element:SetAttribute("ignore-change", "")
-	Element.As.ElementFormControl(self.element).value = newValue
-	self.element:DispatchEvent("change", { value = newValue })
+	Element.As.ElementFormControl(self.element).value = value
+	self.element:DispatchEvent("change", { value = value })
 	self.element:RemoveAttribute("ignore-change")
 end
 
@@ -316,11 +350,14 @@ end
 
 local CheckedBinding = Binding:new()
 function CheckedBinding:update()
-	local newValue = tostring(safe_get_binding(self))
+	self:clearVariables()
+	reference.currentBinding = self
+	local _, value = xpcall(self.binding, module.error_handler)
+	reference.currentBinding = nil
 
 	self.element:SetAttribute("ignore-change", "")
-	Element.As.ElementFormControlInput(self.element).checked = newValue == self.element:GetAttribute("value")
-	self.element:DispatchEvent("change", { value = newValue })
+	Element.As.ElementFormControlInput(self.element).checked = (value == self.element:GetAttribute("value"))
+	self.element:DispatchEvent("change", { value = value })
 	self.element:RemoveAttribute("ignore-change")
 end
 
@@ -345,11 +382,14 @@ end
 local SubmitValueBinding = Binding:new()
 function SubmitValueBinding:update()
 	if not self.element:HasAttribute("bind-submit-dirty") then
-		local newValue = tostring(safe_get_binding(self))
+		self:clearVariables()
+		reference.currentBinding = self
+		local _, value = xpcall(self.binding, module.error_handler)
+		reference.currentBinding = nil
 
 		self.element:SetAttribute("ignore-change", "")
-		Element.As.ElementFormControl(self.element).value = newValue
-		self.element:DispatchEvent("change", { value = newValue })
+		Element.As.ElementFormControl(self.element).value = value
+		self.element:DispatchEvent("change", { value = value })
 		self.element:RemoveAttribute("ignore-change")
 	end
 end
@@ -375,11 +415,14 @@ end
 local SubmitCheckedBinding = Binding:new()
 function SubmitCheckedBinding:update()
 	if not self.element:HasAttribute("bind-submit-dirty") then
-		local newValue = tostring(safe_get_binding(self))
+		self:clearVariables()
+		reference.currentBinding = self
+		local _, value = xpcall(self.binding, module.error_handler)
+		reference.currentBinding = nil
 
 		self.element:SetAttribute("ignore-change", "")
-		Element.As.ElementFormControlInput(self.element).checked = newValue == self.element:GetAttribute("value")
-		self.element:DispatchEvent("change", { value = newValue })
+		Element.As.ElementFormControlInput(self.element).checked = (value == self.element:GetAttribute("value"))
+		self.element:DispatchEvent("change", { value = value })
 		self.element:RemoveAttribute("ignore-change")
 	end
 end
@@ -404,7 +447,11 @@ end
 
 local ForBinding = Binding:new()
 function ForBinding:update()
-	self.values = safe_get_binding(self) or {}
+	self:clearVariables()
+	reference.currentBinding = self
+	local _, values = xpcall(self.binding, module.error_handler)
+	reference.currentBinding = nil
+	self.values = values or {}
 
 	local indexKey = self.indexKey
 	local valueKey = self.valueKey
@@ -437,11 +484,18 @@ function ForBinding:update()
 	end
 
 	local index_ = _G[indexKey]
+	local rIndex_ = reference.R[indexKey]
 	local it_ = _G[valueKey]
-	for k, v in pairs(self.values) do
-		local forElementBindings = elements[k]
-		_G[indexKey] = k
+	local rIt_ = reference.R[valueKey]
+	local containerReference = reference.HalfReference:new(self.values)
+	for i = 1, #self.values do
+		local v = self.values[i]
+		local forElementBindings = elements[i]
+
+		_G[indexKey] = i
+		reference.R[indexKey] = nil
 		_G[valueKey] = v
+		reference.R[valueKey] = containerReference[i]
 
 		for _, bindingsGroup in pairs(forElementBindings.bindings) do
 			for element, bindings in pairs(bindingsGroup) do
@@ -452,7 +506,36 @@ function ForBinding:update()
 		end
 	end
 	_G[indexKey] = index_
+	reference.R[indexKey] = rIndex_
 	_G[valueKey] = it_
+	reference.R[valueKey] = rIt_
+end
+
+function ForBinding:updateChainDown(chain)
+	local next = chain[#chain]
+	if next then
+		table.remove(chain, #chain)
+
+		local index_ = _G[self.indexKey]
+		local rIndex_ = reference.R[self.indexKey]
+		local it_ = _G[self.valueKey]
+		local rIt_ = reference.R[self.valueKey]
+		local containerReference = reference.HalfReference:new(self.values)
+
+		_G[self.indexKey] = next.index
+		reference.R[self.indexKey] = reference.HalfReference:new(next.index)
+		_G[self.valueKey] = self.values[next.index]
+		reference.R[self.valueKey] = containerReference[next.index]
+
+		next.binding:updateChainDown(chain)
+
+		_G[self.indexKey] = index_
+		reference.R[self.indexKey] = rIndex_
+		_G[self.valueKey] = it_
+		reference.R[self.valueKey] = rIt_
+	else
+		self:update()
+	end
 end
 
 local AbstractForBinding = {}

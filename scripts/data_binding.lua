@@ -1,4 +1,5 @@
 local bindings = require("data_binding_bindings")
+local reference = require("data_binding_reference")
 local lenses = require("data_binding_lenses")
 
 local allBindings = {}
@@ -18,6 +19,17 @@ local function error_handler(m)
 end
 
 
+local function update_dirty_bindings(bindings)
+	for binding, children in pairs(bindings) do
+		if children == true then
+			binding:singleUpdate()
+		else
+			update_dirty_bindings(children)
+		end
+	end
+end
+
+
 local Bindings = {}
 function Bindings:new(element)
 	o = o or {}
@@ -28,16 +40,17 @@ function Bindings:new(element)
 		o.direct[priority] = {}
 	end
 	o.indirect = {}
+	o.dirty = {}
 
-	bindings.currentBindings = o
+	reference.currentBindings = o
 	o:bind(element)
-	bindings.currentBindings = nil
+	reference.currentBindings = nil
 
 	return o
 end
 
 function Bindings:update()
-	bindings.currentBindings = self
+	reference.currentBindings = self
 	for _, bindingsGroup in pairs(self.direct) do
 		for element, elementBindings in pairs(bindingsGroup) do
 			for i = 1, #elementBindings do
@@ -45,7 +58,14 @@ function Bindings:update()
 			end
 		end
 	end
-	bindings.currentBindings = nil
+	reference.currentBindings = nil
+end
+
+function Bindings:updateDirty()
+	reference.currentBindings = self
+	update_dirty_bindings(self.dirty)
+	reference.currentBindings = nil
+	self.dirty = {}
 end
 
 function Bindings:bind(
@@ -150,6 +170,9 @@ local function make_bindings(element)
 	return bindings
 end
 
+lenses.dirty_variable = reference.dirty_variable
+lenses.set_variable = reference.set_variable
+
 bindings.error_handler = error_handler
 bindings.elementBindingPriorities = elementBindingPriorities
 
@@ -164,8 +187,17 @@ return {
 	onCreateElement = nil,
 	onDestroyElement = nil,
 
-	make_variable_dirtyable = make_variable_dirtyable,
-	dirty_variable = dirty_variable,
+	make_variable_dirtyable = reference.make_variable_dirtyable,
+	make_container_dirtyable = reference.make_container_dirtyable,
+	is_variable_dirtyable = reference.is_variable_dirtyable,
+	-- Dirty bindings dependent on variable
+	dirty_variable = reference.dirty_variable,
 
-	R = bindings.R,
+	-- Index R to create references to global variables and special variables (for binding variables).
+	-- Call R with a table argument to create a half reference, index the half reference to create a
+	-- full reference.
+	-- When a reference is dereferenced (with the length (#) operator) within a binding, it marks the
+	-- binding as dependent on the variable and all ancestor variables
+	-- eg/ A binding that uses `#R.a.b` is dependent on both `a` and `a.b`.
+	R = reference.R,
 }

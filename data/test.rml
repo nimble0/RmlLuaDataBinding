@@ -15,6 +15,8 @@
 		.right { float: right; }
 	</style>
 	<script>
+		R = data_binding.R
+
 		bindings = nil
 
 		title = "Dynamic test"
@@ -62,6 +64,10 @@
 		end
 
 		function run_tests(document)
+			data_binding.make_container_dirtyable(_G)
+			for i = 1, #outerList do
+				data_binding.make_container_dirtyable(outerList[i])
+			end
 			bindings:update()
 
 			local titleElement = document:GetElementById("title")
@@ -69,6 +75,10 @@
 			test.assert(titleElement:IsClassSet("dynamic-title"), "bind-class")
 			titleElement:DispatchEvent("click", {})
 			test.assert(lastClickEvent, "test1")
+			title = "Dirty variable"
+			data_binding.dirty_variable(R.title)
+			bindings:updateDirty()
+			test.assertEquals(titleElement.inner_rml, title, "bind")
 
 			local imgElement = document:GetElementById("img")
 			test.assertEquals(imgElement:GetAttribute("src"), "icons/shield-icon.png", "bind-attribute-src")
@@ -112,34 +122,43 @@
 				test.assertEquals(e.inner_rml, test3[i], "bind-for bind value, same element")
 			end
 
+			outerList[2].title = "baaaa"
+			data_binding.dirty_variable(R.outerList[2].title)
+			bindings:updateDirty()
+			test.assertEquals(
+				document:GetElementsByTagName("outerfor")[2]:GetElementsByTagName("h2")[1].inner_rml,
+				outerList[2].title,
+				"bind nested dirty variable")
+
 			local textInputElement = document:GetElementById("text-input")
 			textInputElement.value = "beans"
 			textInputElement:DispatchEvent("change", {value = "beans"})
-			bindings:update()
+			bindings:updateDirty()
 			test.assertEquals(name, "beans", "bind-value text input")
 
 			local selectInputElement = document:GetElementById("select-input")
 			Element.As.ElementFormControlSelect(selectInputElement).selection = 2
-			bindings:update()
+			bindings:updateDirty()
 			test.assertEquals(sensitivity, 2, "bind-value select input")
 
 			local checkboxInputElement = Element.As.ElementFormControlInput(document:GetElementById("checkbox-input"))
 			name = "pasta"
-			bindings:update()
+			data_binding.dirty_variable(R.name)
+			bindings:updateDirty()
 			test.assert(checkboxInputElement.checked, "bind-value checkbox input checked")
 			checkboxInputElement.checked = false
-			bindings:update()
+			bindings:updateDirty()
 			test.assertEquals(name, "", "bind-value checkbox input uncheck")
 
 			local radioInputElement1 = Element.As.ElementFormControlInput(document:GetElementById("radio-input-1"))
 			local radioInputElement2 = Element.As.ElementFormControlInput(document:GetElementById("radio-input-2"))
 			radioInputElement1.checked = true
-			bindings:update()
+			bindings:updateDirty()
 			test.assertEquals(name, "blue", "bind-value radio input")
 			test.assert(radioInputElement1.checked, "bind-value radio input checked")
 			test.assert(not radioInputElement2.checked, "bind-value radio input checked")
 			radioInputElement2.checked = true
-			bindings:update()
+			bindings:updateDirty()
 			test.assertEquals(name, "purp", "bind-value radio input")
 			test.assert(not radioInputElement1.checked, "bind-value radio input checked")
 			test.assert(radioInputElement2.checked, "bind-value radio input checked")
@@ -153,7 +172,7 @@
 			textInputElement2.value = "beans"
 			textInputElement2:DispatchEvent("change", {value = "beans"})
 			selectInputElement2.selection = 5
-			bindings:update()
+			bindings:updateDirty()
 			test.assertEquals(name, preName, "bind-submit-value text before submit")
 			test.assertEquals(sensitivity, preSensitivity, "bind-submit-value select before submit")
 			Element.As.ElementForm(document:GetElementById("submit-form")):Submit()
@@ -165,42 +184,43 @@
 <body id="body" onload="testDocument = document">
 	<button onclick="make_bindings(document)">make bindings</button>
 	<button onclick="bindings:update()">update bindings</button>
-	<h1 id="title" bind="title" bind-class="'dynamic-'..'title'" bind-event-click="print('click test1') lastClickEvent = 'test1'">Test</h1>
+	<button onclick="bindings:updateDirty()">update dirty bindings</button>
+	<h1 id="title" bind="#R.title" bind-class="'dynamic-'..'title'" bind-event-click="print('click test1') lastClickEvent = 'test1'">Test</h1>
 	<div id="main-menu-wrapper">
 		<div bind-class="'a-class'">some text</div>
-		<div bind-for="index, option in options">
+		<div bind-for="index, option in #R.options">
 			<for class="wrapper">repeat me <span bind="index" /> <span bind="option" /></for>
 		</div>
 	</div>
 	<div>
-		<outerfor bind-for="position in outerList">
-			<h2 bind="position.title" />
-			<innerfor bind-for="colour in position.innerList" bind-event-click="print('click test2', element.inner_rml) lastClickEvent = element.inner_rml">
+		<outerfor bind-for="position in #R.outerList">
+			<h2 bind="#R.position.title" />
+			<innerfor bind-for="colour in #R.position.innerList" bind-event-click="print('click test2', element.inner_rml) lastClickEvent = element.inner_rml">
 				<span bind="colour" />
 			</innerfor>
 		</outerfor>
 	</div>
 	<img id="img" src="icons/health-icon.png" bind-attribute-src="imageSrc" />
 	<for2 id="bloop" bind-for="a in test3" bind="a" />
-	<input id="text-input" bind-value="data_binding.make_lens({parent = _G, key = 'name'})" type="text" />
-	<div>name: <span bind="name" /></div>
+	<input id="text-input" bind-value="data_binding.make_lens(R.name)" type="text" />
+	<div>name: <span bind="#R.name" /></div>
 	<div bind-event-click="name = 'orange'">set name orange</div>
-	<input bind-value="data_binding.make_number_lens({parent = _G, key = 'sensitivity'})" type="text" />
-	<div>sensitivity + 1: <span bind="sensitivity + 1" /></div>
-	<select id="select-input" bind-value="data_binding.make_number_lens({parent = _G, key = 'sensitivity'})">
+	<input bind-value="data_binding.make_number_lens(R.sensitivity)" type="text" />
+	<div>sensitivity + 1: <span bind="#R.sensitivity + 1" /></div>
+	<select id="select-input" bind-value="data_binding.make_number_lens(R.sensitivity)">
 		<option value="1">1</option>
 		<option value="2">2</option>
 		<option value="3">3</option>
 	</select>
 	<form>
-		<input id="checkbox-input" type="checkbox" value="pasta" bind-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> Pasta
-		<input id="radio-input-1" type="radio" name="checky" value="blue" bind-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> blue
-		<input id="radio-input-2" type="radio" name="checky" value="purp" bind-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> purp
+		<input id="checkbox-input" type="checkbox" value="pasta" bind-checked="data_binding.make_lens(R.name)" /> Pasta
+		<input id="radio-input-1" type="radio" name="checky" value="blue" bind-checked="data_binding.make_lens(R.name)" /> blue
+		<input id="radio-input-2" type="radio" name="checky" value="purp" bind-checked="data_binding.make_lens(R.name)" /> purp
 	</form>
 	<form id="submit-form">
-		<input id="radio-input-3" type="radio" name="checky2" value="blue" bind-submit-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> blue
-		<input id="radio-input-4" type="radio" name="checky2" value="purp" bind-submit-checked="data_binding.make_lens({parent = _G, key = 'name'})" /> purp
-		<select id="select-input-2" bind-submit-value="data_binding.make_number_lens({parent = _G, key = 'sensitivity'})">
+		<input id="radio-input-3" type="radio" name="checky2" value="blue" bind-submit-checked="data_binding.make_lens(R.name)" /> blue
+		<input id="radio-input-4" type="radio" name="checky2" value="purp" bind-submit-checked="data_binding.make_lens(R.name)" /> purp
+		<select id="select-input-2" bind-submit-value="data_binding.make_number_lens(R.sensitivity)">
 			<option value="1">1</option>
 			<option value="2">2</option>
 			<option value="3">3</option>
@@ -208,7 +228,7 @@
 			<option value="5">5</option>
 			<option value="6">6</option>
 		</select>
-		<input id="text-input-2" bind-submit-value="data_binding.make_lens({parent = _G, key = 'name'})" type="text" />
+		<input id="text-input-2" bind-submit-value="data_binding.make_lens(R.name)" type="text" />
 		<input id="submit-input" type="submit">apply</input>
 	</form>
 </body>

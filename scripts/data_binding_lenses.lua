@@ -3,49 +3,54 @@ local module = {}
 
 local function make_lens(ref)
 	return
-		function() return ref.parent[ref.key] end,
+		function() return #ref end,
 		function(v)
-			ref.parent[ref.key] = v
+			module.set_variable(ref, v)
+			module.dirty_variable(ref)
 		end
 end
 
 local function make_number_lens(ref)
 	return
-		function() return ref.parent[ref.key] end,
+		function() return #ref end,
 		function(v)
 			local v2 = tonumber(v)
 			if v2 then
-				ref.parent[ref.key] = v2
+				module.set_variable(ref, v2)
+				module.dirty_variable(ref)
 			end
 		end
 end
 
 local function make_float_lens(ref, format)
 	return
-		function() return string.format(format, ref.parent[ref.key]) end,
+		function() return string.format(format, #ref) end,
 		function(v)
 			local v2 = tonumber(v)
 			if v2 then
-				ref.parent[ref.key] = v2
+				module.set_variable(ref, v2)
+				module.dirty_variable(ref)
 			end
 		end
 end
 
 local function make_boolean_lens(ref)
 	return
-		function() return ref.parent[ref.key] end,
+		function() return #ref end,
 		function(v)
-			ref.parent[ref.key] = v:len() > 0
+			module.set_variable(ref, v:len() > 0)
+			module.dirty_variable(ref)
 		end
 end
 
 local function make_enum_lens(ref, enum)
 	return
-		function() return enum[ref.parent[ref.key]] end,
+		function() return enum[#ref] end,
 		function(v)
 			local v2 = enum[v]
 			if v2 then
-				ref.parent[ref.key] = v2
+				module.set_variable(ref, v2)
+				module.dirty_variable(ref)
 			end
 		end
 end
