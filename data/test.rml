@@ -25,7 +25,8 @@
 			"options",
 			"quit"
 		}
-		outerList = {
+		outerList = DirtyableWrapper:new
+		{
 			{
 				title = "a",
 				innerList = {
@@ -65,9 +66,6 @@
 
 		function run_tests(document)
 			data_binding.make_container_dirtyable(_G)
-			for i = 1, #outerList do
-				data_binding.make_container_dirtyable(outerList[i])
-			end
 			bindings:update()
 
 			local titleElement = document:GetElementById("title")
@@ -123,7 +121,6 @@
 			end
 
 			outerList[2].title = "baaaa"
-			data_binding.dirty_variable(R.outerList[2].title)
 			bindings:updateDirty()
 			test.assertEquals(
 				document:GetElementsByTagName("outerfor")[2]:GetElementsByTagName("h2")[1].inner_rml,

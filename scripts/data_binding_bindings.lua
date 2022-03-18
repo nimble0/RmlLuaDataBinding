@@ -453,11 +453,16 @@ function ForBinding:update()
 	reference.currentBinding = nil
 	self.values = values or {}
 
+	local _, valuesLength = xpcall(function() return #self.values end, module.error_handler)
+	if not valuesLength then
+		return
+	end
+
 	local indexKey = self.indexKey
 	local valueKey = self.valueKey
 	local elements = self.elements
 
-	while #self.values > #elements do
+	while valuesLength > #elements do
 		self.element.parent_node:InsertBefore(self.element.owner_document:CreateElement(self.element.tag_name), self.element)
 		local forElement = self.element.previous_sibling
 		for k, v in pairs(self.element.attributes) do
@@ -475,7 +480,7 @@ function ForBinding:update()
 			xpcall(data_binding.onCreateElement, module.error_handler, forElement)
 		end
 	end
-	while #self.values < #elements do
+	while valuesLength < #elements do
 		if data_binding.onDestroyElement then
 			xpcall(data_binding.onDestroyElement, module.error_handler, elements[#elements].element)
 		end
@@ -488,7 +493,7 @@ function ForBinding:update()
 	local it_ = _G[valueKey]
 	local rIt_ = reference.R[valueKey]
 	local containerReference = reference.HalfReference:new(self.values)
-	for i = 1, #self.values do
+	for i = 1, valuesLength do
 		local v = self.values[i]
 		local forElementBindings = elements[i]
 
@@ -499,8 +504,8 @@ function ForBinding:update()
 
 		for _, bindingsGroup in pairs(forElementBindings.bindings) do
 			for element, bindings in pairs(bindingsGroup) do
-				for i = 1, #bindings do
-					bindings[i]:update()
+				for j = 1, #bindings do
+					bindings[j]:update()
 				end
 			end
 		end
