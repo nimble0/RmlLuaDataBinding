@@ -61,36 +61,16 @@ local function bind_value_set(element, binding)
 		true)
 end
 
-local function form_submit(_, element)
-	for _, e in pairs(element.child_nodes) do
-		local submitValueBinding = e:GetAttribute("bind-submit-value") or e:GetAttribute("bind-submit-checked")
-		if submitValueBinding and e:HasAttribute("bind-submit-dirty") then
-			local value = Element.As.ElementFormControl(e).value
-			local success = xpcall(
-				function(src, value) select(2, make_binding(src)())(value) end,
-				module.error_handler,
-				submitValueBinding,
-				value)
-			if success then
-				e:RemoveAttribute("bind-submit-dirty")
+local function bind_submit_form(element, binding)
+	local currentBindings = reference.currentBindings
+	currentBindings.elementSubmitBindings[tostring(element)] = binding
+	element:AddEventListener("submit",
+		function(event)
+			for _, binding in pairs(binding.submitBindings) do
+				local value = Element.As.ElementFormControl(binding.element).value
+				currentBindings.deferredSetBindings[binding] = value
 			end
-		end
-		form_submit(_, e)
-	end
-end
-
-local function bind_submit_form(element)
-	local containerForm = element.parent_node
-	while containerForm ~= nil and containerForm.tag_name ~= "form" do
-		containerForm = containerForm.parent_node
-	end
-	if containerForm == nil then
-		return
-	end
-	if not containerForm:HasAttribute("bind-submit") then
-		containerForm:SetAttribute("bind-submit", "true")
-		containerForm:AddEventListener("submit", form_submit)
-	end
+		end)
 end
 
 local function bind_submit_value_set(element, bindValue)
@@ -106,7 +86,16 @@ local function bind_submit_value_set(element, bindValue)
 			end
 		end,
 		true)
-	bind_submit_form(element)
+
+	local elementSubmitBindings = currentBindings.elementSubmitBindings
+	local containerForm = element.parent_node
+	while containerForm ~= nil and elementSubmitBindings[tostring(containerForm)] == nil do
+		containerForm = containerForm.parent_node
+	end
+	if containerForm == nil then
+		return
+	end
+	table.insert(elementSubmitBindings[tostring(containerForm)].submitBindings, bindValue)
 end
 
 local function bind_for_sub_element(
@@ -201,6 +190,7 @@ function Binding:update() end
 function Binding:singleUpdate()
 	self:updateChainUp({})
 end
+-- Recreate context if necessary for single binding (bind-for variables)
 function Binding:updateChainUp(chain)
 	if self.parent then
 		table.insert(chain, { binding = self, index = self.parentIndex })
@@ -443,6 +433,24 @@ function AbstractSubmitCheckedBinding:apply(element)
 end
 
 
+local SubmitBinding = Binding:new()
+
+local AbstractSubmitBinding = {}
+function AbstractSubmitBinding:new(element)
+	local o = {}
+	setmetatable(o, self)
+	self.__index = self
+	o.element = element
+	return o
+end
+
+function AbstractSubmitBinding:apply(element)
+	local o = SubmitBinding:new{element = element, submitBindings = {}}
+	bind_submit_form(element, o)
+	return o
+end
+
+
 local ForBinding = Binding:new()
 function ForBinding:update()
 	self:clearVariables()
@@ -573,6 +581,7 @@ module.AbstractValueBinding = AbstractValueBinding
 module.AbstractCheckedBinding = AbstractCheckedBinding
 module.AbstractSubmitValueBinding = AbstractSubmitValueBinding
 module.AbstractSubmitCheckedBinding = AbstractSubmitCheckedBinding
+module.AbstractSubmitBinding = AbstractSubmitBinding
 module.AbstractForBinding = AbstractForBinding
 
 return module

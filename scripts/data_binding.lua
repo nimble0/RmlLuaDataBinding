@@ -2,6 +2,8 @@ local bindings = require("data_binding_bindings")
 local reference = require("data_binding_reference")
 local lenses = require("data_binding_lenses")
 
+local WeakValueTable = { __mode = "v" }
+
 local allBindings = {}
 local bindingId = 0
 
@@ -42,6 +44,10 @@ function Bindings:new(element)
 	o.indirect = {}
 	o.dirty = {}
 	o.deferredSetBindings = {}
+	-- Workaround because we can't store a binding reference directly in a element
+	-- Store element (key) as string because element references do not satisfy equality
+	o.elementSubmitBindings = {}
+	setmetatable(o.elementSubmitBindings, WeakValueTable)
 
 	reference.currentBindings = o
 	o:bind(element)
@@ -140,13 +146,12 @@ function Bindings:bind(
 		table.insert(abstractElementBindings, bindings.AbstractSubmitCheckedBinding:new(element))
 	end
 
+	if element:HasAttribute("bind-submit") then
+		table.insert(abstractElementBindings, bindings.AbstractSubmitBinding:new(element))
+	end
+
 	if element:HasAttribute("bind") then
 		table.insert(abstractElementBindings, bindings.AbstractContentBinding:new(element))
-	-- Can't nest content bindings because inner_rml is replaced by a content binding
-	else
-		for _, child in pairs(element.child_nodes) do
-			self:bind(child, useBindingId)
-		end
 	end
 
 	if #abstractElementBindings > 0 then
@@ -172,6 +177,13 @@ function Bindings:bind(
 			if data_binding.onCreateElement then
 				xpcall(data_binding.onCreateElement, error_handler, element)
 			end
+		end
+	end
+
+	-- Can't nest content bindings because inner_rml is replaced by a content binding
+	if not element:HasAttribute("bind") then
+		for _, child in pairs(element.child_nodes) do
+			self:bind(child, useBindingId)
 		end
 	end
 end

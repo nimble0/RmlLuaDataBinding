@@ -178,6 +178,7 @@
 			test.assertEquals(name, preName, "bind-submit-value text before submit")
 			test.assertEquals(sensitivity, preSensitivity, "bind-submit-value select before submit")
 			Element.As.ElementForm(document:GetElementById("submit-form")):Submit()
+			bindings:setDeferredBindings()
 			test.assertEquals(name, "beans", "bind-submit-value text after submit")
 			test.assertEquals(sensitivity, 5, "bind-submit-value select after submit")
 		end
@@ -219,7 +220,7 @@
 		<input id="radio-input-1" type="radio" name="checky" value="blue" bind-checked="data_binding.make_lens(R.name)" /> blue
 		<input id="radio-input-2" type="radio" name="checky" value="purp" bind-checked="data_binding.make_lens(R.name)" /> purp
 	</form>
-	<form id="submit-form">
+	<form id="submit-form" bind-submit>
 		<input id="radio-input-3" type="radio" name="checky2" value="blue" bind-submit-checked="data_binding.make_lens(R.name)" /> blue
 		<input id="radio-input-4" type="radio" name="checky2" value="purp" bind-submit-checked="data_binding.make_lens(R.name)" /> purp
 		<select id="select-input-2" bind-submit-value="data_binding.make_number_lens(R.sensitivity)">
