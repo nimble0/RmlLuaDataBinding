@@ -42,6 +42,8 @@ setmetatable(dependents, WeakKeyTable)
 local __PARENT = {}
 local __CONTAINER = {}
 local __KEY = {}
+local __ROOT = {}
+local __KEYS = {}
 local __DIRTYABLE_CONTAINER = {}
 
 
@@ -74,9 +76,19 @@ local function add_dependency(container, key)
 	set_insert(module.currentBinding.variables, { container = container, key = key })
 end
 
-local function make_variable_dirtyable(v)
-	local container = v[__CONTAINER]
-	local key = v[__KEY]
+local function get_container_key(ref)
+	local container = ref[__ROOT]
+	local keys = ref[__KEYS]
+	for i = 1, #keys - 1 do
+		container = container[keys[i]]
+	end
+	local key = keys[#keys]
+
+	return container, key
+end
+
+local function make_variable_dirtyable(ref)
+	local container, key = get_container_key(ref)
 	local a = dependents[container] or {}
 	dependents[container] = a
 	a[key] = a[key] or {}
@@ -87,15 +99,20 @@ local function make_container_dirtyable(v)
 	dependents[v][__DIRTYABLE_CONTAINER] = true
 end
 
-local function is_variable_dirtyable(v)
-	local container = v[__CONTAINER]
-	local key = v[__KEY]
+local function is_variable_dirtyable(ref)
+	local container, key = get_container_key(ref)
 	return ((dependents[container] or {})[key] ~= nil) or (dependents[container][__DIRTYABLE_CONTAINER] == true)
 end
 
-local function dirty_variable(v)
-	local container = v[__CONTAINER]
-	local key = v[__KEY]
+local function dirty_variable(ref)
+	local container = ref[__ROOT]
+	local keys = ref[__KEYS]
+	for i = 1, #keys - 1 do
+		local key = keys[i]
+		add_dependency(container, key)
+		container = container[key]
+	end
+	local key = keys[#keys]
 
 	local bindingsCollections = (dependents[container] or {})[key]
 	if not bindingsCollections then
@@ -122,8 +139,7 @@ local function dirty_variable(v)
 end
 
 local function set_variable(ref, value)
-	local container = ref[__CONTAINER]
-	local key = ref[__KEY]
+	local container, key = get_container_key(ref)
 	container[key] = value
 end
 
@@ -133,34 +149,40 @@ end
 -- Index to create a Reference to a descendent variable
 local ReferenceMt = {}
 local Reference = {}
-function Reference:new(parent, container, key)
+function Reference:new(root, keys)
+	assert(root ~= nil and keys ~= nil)
+
 	local o = {}
 	setmetatable(o, ReferenceMt)
-	-- Parent reference, used to add dependencies on ancestor references
-	o[__PARENT] = parent
-	-- Table and key pair
-	o[__CONTAINER] = container
-	o[__KEY] = key
+	o[__ROOT] = root
+	o[__KEYS] = keys
 	return o
 end
 
 function ReferenceMt:__index(k)
-	return Reference:new(self, self[__CONTAINER][self[__KEY]], k)
+	local keys = self[__KEYS]
+	local keysCopy = {}
+	for i = 1, #keys do
+		keysCopy[i] = keys[i]
+	end
+	table.insert(keysCopy, k)
+	return Reference:new(self[__ROOT], keysCopy)
 end
 
 function ReferenceMt:dereference()
-	getmetatable(self[__PARENT]).dereference(self[__PARENT])
-	local container = self[__CONTAINER]
-	local key = self[__KEY]
-	add_dependency(container, key)
+	local container = self[__ROOT]
+	local keys = self[__KEYS]
+	for i = 1, #keys do
+		local key = keys[i]
+		add_dependency(container, key)
+		container = container[key]
+	end
+	return container
 end
 
 -- Return underlying value and mark as a dependency
 function ReferenceMt:__len()
-	ReferenceMt.dereference(self)
-	local container = self[__CONTAINER]
-	local key = self[__KEY]
-	return container[key]
+	return ReferenceMt.dereference(self)
 end
 
 
@@ -175,7 +197,7 @@ function HalfReference:new(container)
 end
 
 function HalfReferenceMt:__index(k)
-	return Reference:new(self, self[__CONTAINER], k)
+	return Reference:new(self[__CONTAINER], {k})
 end
 
 function HalfReferenceMt:dereference() end
