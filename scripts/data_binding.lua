@@ -192,6 +192,7 @@ return {
 	is_variable_dirtyable = reference.is_variable_dirtyable,
 	-- Dirty bindings dependent on variable
 	dirty_variable = reference.dirty_variable,
+	set_variable = reference.set_variable,
 
 	-- Index R to create references to global variables and special variables (for binding variables).
 	-- Call R with a table argument to create a half reference, index the half reference to create a
