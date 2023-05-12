@@ -55,9 +55,7 @@ local function bind_value_set(element, binding)
 	element:AddEventListener("change",
 		function(event)
 			if not element:GetAttribute("ignore-change") then
-				currentBindings.ignoreDirtyBinding = binding
-				binding.setBinding(event.parameters.value)
-				currentBindings.ignoreDirtyBinding = nil
+				currentBindings.deferredSetBindings[binding] = event.parameters.value
 			end
 		end,
 		true)

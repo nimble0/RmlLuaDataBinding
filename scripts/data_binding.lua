@@ -41,6 +41,7 @@ function Bindings:new(element)
 	end
 	o.indirect = {}
 	o.dirty = {}
+	o.deferredSetBindings = {}
 
 	reference.currentBindings = o
 	o:bind(element)
@@ -66,6 +67,17 @@ function Bindings:updateDirty()
 	update_dirty_bindings(self.dirty)
 	reference.currentBindings = nil
 	self.dirty = {}
+end
+
+function Bindings:setDeferredBindings()
+	reference.currentBindings = self
+	for binding, value in pairs(self.deferredSetBindings) do
+		reference.currentBindings.ignoreDirtyBinding = binding
+		binding.setBinding(value)
+		reference.currentBindings.ignoreDirtyBinding = nil
+	end
+	reference.currentBindings = nil
+	self.deferredSetBindings = {}
 end
 
 function Bindings:bind(

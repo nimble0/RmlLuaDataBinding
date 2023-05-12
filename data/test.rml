@@ -130,11 +130,13 @@
 			local textInputElement = document:GetElementById("text-input")
 			textInputElement.value = "beans"
 			textInputElement:DispatchEvent("change", {value = "beans"})
+			bindings:setDeferredBindings()
 			bindings:updateDirty()
 			test.assertEquals(name, "beans", "bind-value text input")
 
 			local selectInputElement = document:GetElementById("select-input")
 			Element.As.ElementFormControlSelect(selectInputElement).selection = 2
+			bindings:setDeferredBindings()
 			bindings:updateDirty()
 			test.assertEquals(sensitivity, 2, "bind-value select input")
 
@@ -144,17 +146,20 @@
 			bindings:updateDirty()
 			test.assert(checkboxInputElement.checked, "bind-value checkbox input checked")
 			checkboxInputElement.checked = false
+			bindings:setDeferredBindings()
 			bindings:updateDirty()
 			test.assertEquals(name, "", "bind-value checkbox input uncheck")
 
 			local radioInputElement1 = Element.As.ElementFormControlInput(document:GetElementById("radio-input-1"))
 			local radioInputElement2 = Element.As.ElementFormControlInput(document:GetElementById("radio-input-2"))
 			radioInputElement1.checked = true
+			bindings:setDeferredBindings()
 			bindings:updateDirty()
 			test.assertEquals(name, "blue", "bind-value radio input")
 			test.assert(radioInputElement1.checked, "bind-value radio input checked")
 			test.assert(not radioInputElement2.checked, "bind-value radio input checked")
 			radioInputElement2.checked = true
+			bindings:setDeferredBindings()
 			bindings:updateDirty()
 			test.assertEquals(name, "purp", "bind-value radio input")
 			test.assert(not radioInputElement1.checked, "bind-value radio input checked")
