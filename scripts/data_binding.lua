@@ -4,7 +4,6 @@ local lenses = require("data_binding_lenses")
 
 local WeakValueTable = { __mode = "v" }
 
-local allBindings = {}
 local bindingId = 0
 
 -- Lower priority values are updated first
@@ -189,9 +188,7 @@ function Bindings:bind(
 end
 
 local function make_bindings(element)
-	local bindings = Bindings:new(element)
-	table.insert(allBindings, bindings)
-	return bindings
+	return Bindings:new(element)
 end
 
 bindings.error_handler = error_handler
