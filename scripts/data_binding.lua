@@ -194,9 +194,6 @@ local function make_bindings(element)
 	return bindings
 end
 
-lenses.dirty_variable = reference.dirty_variable
-lenses.set_variable = reference.set_variable
-
 bindings.error_handler = error_handler
 bindings.elementBindingPriorities = elementBindingPriorities
 

@@ -1,3 +1,5 @@
+local reference = require("data_binding_reference")
+
 local module = {}
 
 
@@ -5,8 +7,8 @@ local function make_lens(ref)
 	return
 		function() return #ref end,
 		function(v)
-			module.set_variable(ref, v)
-			module.dirty_variable(ref)
+			reference.set_variable(ref, v)
+			reference.dirty_variable(ref)
 		end
 end
 
@@ -16,8 +18,8 @@ local function make_number_lens(ref)
 		function(v)
 			local v2 = tonumber(v)
 			if v2 then
-				module.set_variable(ref, v2)
-				module.dirty_variable(ref)
+				reference.set_variable(ref, v2)
+				reference.dirty_variable(ref)
 			end
 		end
 end
@@ -28,8 +30,8 @@ local function make_float_lens(ref, format)
 		function(v)
 			local v2 = tonumber(v)
 			if v2 then
-				module.set_variable(ref, v2)
-				module.dirty_variable(ref)
+				reference.set_variable(ref, v2)
+				reference.dirty_variable(ref)
 			end
 		end
 end
@@ -38,8 +40,8 @@ local function make_boolean_lens(ref)
 	return
 		function() return #ref end,
 		function(v)
-			module.set_variable(ref, v:len() > 0)
-			module.dirty_variable(ref)
+			reference.set_variable(ref, v:len() > 0)
+			reference.dirty_variable(ref)
 		end
 end
 
@@ -49,8 +51,8 @@ local function make_enum_lens(ref, enum)
 		function(v)
 			local v2 = enum[v]
 			if v2 then
-				module.set_variable(ref, v2)
-				module.dirty_variable(ref)
+				reference.set_variable(ref, v2)
+				reference.dirty_variable(ref)
 			end
 		end
 end
