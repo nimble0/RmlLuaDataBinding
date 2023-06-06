@@ -25,7 +25,7 @@
 			"options",
 			"quit"
 		}
-		outerList = DirtyableWrapper:new
+		outerList = DirtyableWrapper:new(R.outerList,
 		{
 			{
 				title = "a",
@@ -45,7 +45,7 @@
 					"copper", "orange"
 				}
 			},
-		}
+		})
 		test3 = {
 			"a",
 			"b",

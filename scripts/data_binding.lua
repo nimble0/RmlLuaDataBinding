@@ -49,6 +49,8 @@ function Bindings:new(element)
 	o.updating = false
 	setmetatable(o.elementSubmitBindings, WeakValueTable)
 
+	reference.make_dirtyable_layout(o)
+
 	reference.currentBindings = o
 	o:bind(element)
 	reference.currentBindings = nil

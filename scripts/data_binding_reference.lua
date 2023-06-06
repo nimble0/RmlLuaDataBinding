@@ -22,15 +22,26 @@ end
 local WeakTable = { __mode = "kv" }
 local WeakKeyTable = { __mode = "k" }
 
+local dirtyableVariablesLayout = {}
 -- dependents layout
 -- {
--- 	container
+-- 	Bindings
 -- 	{
--- 		key
+-- 		root container
 -- 		{
--- 			bindings
+-- 			key1
 -- 			{
--- 				binding
+-- 				bindings (__BINDINGS)
+-- 				{
+-- 					binding
+-- 				}
+-- 				key2
+-- 				{
+-- 					bindings (__BINDINGS)
+-- 					{
+-- 						binding
+-- 					}
+-- 				}
 -- 			}
 -- 		}
 -- 	}
@@ -39,41 +50,65 @@ local dependents = {}
 setmetatable(dependents, WeakKeyTable)
 
 -- Unique keys to prevent conflicting with other keys in index metamethod
-local __PARENT = {}
-local __CONTAINER = {}
-local __KEY = {}
 local __ROOT = {}
 local __KEYS = {}
 local __DIRTYABLE_CONTAINER = {}
+local __BINDINGS = {}
 
 
-local function clear_dependencies(binding)
-	for i = #binding.variables, 1, -1 do
-		local variable = binding.variables[i]
-		local variableDependents = (dependents[variable.container] or {})[variable.key]
-		if variableDependents then
-			set_remove(variableDependents[module.currentBindings], binding)
-		end
-		binding.variables[i] = nil
+local function copy_dirtyable_layout(src, dest)
+	for k, v in pairs(src) do
+		local dependents = {}
+		dependents[__BINDINGS] = {}
+		dest[k] = dependents
+		copy_dirtyable_layout(v, dest[k])
 	end
 end
 
-local function add_dependency(container, key)
+local function make_dirtyable_layout(bindings)
+	dependents[bindings] = {}
+	copy_dirtyable_layout(dirtyableVariablesLayout, dependents[bindings])
+end
+
+local function clear_dependencies(binding)
+	local bindingsDependents = dependents[module.currentBindings]
+	for i = #binding.variables, 1, -1 do
+		local ref = binding.variables[i]
+		local root = ref[__ROOT]
+		local keys = ref[__KEYS]
+		local refDependents = bindingsDependents[root]
+		for i = 1, #keys do
+			local key = keys[i]
+			if refDependents[key] ~= nil then
+				refDependents = refDependents[key]
+			else
+				break
+			end
+		end
+		set_remove(refDependents[__BINDINGS], binding)
+	end
+	binding.variables = {}
+end
+
+local function add_dependency(ref)
 	if not module.currentBinding then
 		return
 	end
 
-	local containerDependents = dependents[container]
-	if not containerDependents then
-		return
+	local root = ref[__ROOT]
+	local keys = ref[__KEYS]
+	local refDependents = dependents[module.currentBindings][root]
+	for i = 1, #keys do
+		local key = keys[i]
+		if refDependents[key] ~= nil then
+			refDependents = refDependents[key]
+		else
+			break
+		end
 	end
-	local variableDependents = containerDependents[key] or {}
-	containerDependents[key] = variableDependents
-	local bindings = variableDependents[module.currentBindings] or {}
-	variableDependents[module.currentBindings] = bindings
-	set_insert(bindings, module.currentBinding)
+	set_insert(refDependents[__BINDINGS], module.currentBinding)
 
-	set_insert(module.currentBinding.variables, { container = container, key = key })
+	set_insert(module.currentBinding.variables, ref)
 end
 
 local function get_container_key(ref)
@@ -87,16 +122,48 @@ local function get_container_key(ref)
 	return container, key
 end
 
-local function make_variable_dirtyable(ref)
-	local container, key = get_container_key(ref)
-	local a = dependents[container] or {}
-	dependents[container] = a
-	a[key] = a[key] or {}
+local function make_path(container, keys)
+	for i = 1, #keys do
+		local key = keys[i]
+		local subContainer = container[key] or {}
+		container[key] = subContainer
+		container = subContainer
+	end
 end
 
-local function make_container_dirtyable(v)
-	dependents[v] = dependents[v] or {}
-	dependents[v][__DIRTYABLE_CONTAINER] = true
+local function make_path_with_bindings(container, keys)
+	for i = 1, #keys do
+		local key = keys[i]
+		local subContainer = container[key] or {}
+		subContainer[__BINDINGS] = {}
+		container[key] = subContainer
+		container = subContainer
+	end
+end
+
+local function make_variable_dirtyable(ref)
+	local rootKeys = { ref[__ROOT] }
+	local keys = ref[__KEYS]
+	for i = 1, #keys do
+		table.insert(rootKeys, keys[i])
+	end
+
+	make_path(dirtyableVariablesLayout, rootKeys)
+	for _, dependents in pairs(dependents) do
+		make_path_with_bindings(dependents, rootKeys)
+	end
+end
+
+local function make_container_dirtyable(container)
+	if dirtyableVariablesLayout[container] ~= nil then
+		return
+	end
+	dirtyableVariablesLayout[container] = {}
+	for _, bindingsDependents in pairs(dependents) do
+		containerDependents = {}
+		containerDependents[__BINDINGS] = {}
+		bindingsDependents[container] = containerDependents
+	end
 end
 
 local function is_variable_dirtyable(ref)
@@ -105,22 +172,44 @@ local function is_variable_dirtyable(ref)
 end
 
 local function dirty_variable(ref)
-	local container = ref[__ROOT]
+	local refDependents = nil
+	local root = ref[__ROOT]
 	local keys = ref[__KEYS]
-	for i = 1, #keys - 1 do
-		local key = keys[i]
-		add_dependency(container, key)
-		container = container[key]
-	end
-	local key = keys[#keys]
+	for bindingsCollection, bindingsDependents in pairs(dependents) do
+		refDependents = bindingsDependents[root]
+		for i = 1, #keys do
+			local key = keys[i]
+			if refDependents[key] ~= nil then
+				refDependents = refDependents[key]
+			else
+				break
+			end
+		end
 
-	local bindingsCollections = (dependents[container] or {})[key]
-	if not bindingsCollections then
-		return
-	end
-	for bindingsCollection, bindings in pairs(bindingsCollections) do
-		for i = 1, #bindings do
-			local binding = bindings[i]
+		local dirtiedBindings = {}
+		local checkRefDependents = { refDependents }
+		while true do
+			local newCheckRefDependents = {}
+			for i = 1, #checkRefDependents do
+				local refDependents = checkRefDependents[i]
+				for key, dependent in pairs(refDependents) do
+					if key ~= __BINDINGS then
+						table.insert(newChecksRefs, dependent)
+					else
+						for i = 1, #dependent do
+							table.insert(dirtiedBindings, dependent[i])
+						end
+					end
+				end
+			end
+			checkRefDependents = newCheckRefDependents
+			if #checkRefDependents == 0 then
+				break
+			end
+		end
+
+		for i = 1, #dirtiedBindings do
+			local binding = dirtiedBindings[i]
 			if binding ~= bindingsCollection.ignoreDirtyBinding then
 				local lineage = {binding}
 				while lineage[#lineage].container do
@@ -153,9 +242,9 @@ function Reference:new(root, keys)
 	assert(root ~= nil and keys ~= nil)
 
 	local o = {}
-	setmetatable(o, ReferenceMt)
 	o[__ROOT] = root
 	o[__KEYS] = keys
+	setmetatable(o, ReferenceMt)
 	return o
 end
 
@@ -169,12 +258,23 @@ function ReferenceMt:__index(k)
 	return Reference:new(self[__ROOT], keysCopy)
 end
 
+function ReferenceMt:__newindex(k, v)
+	local container = self[__ROOT]
+	local keys = self[__KEYS]
+	for i = 1, #keys do
+		container = container[keys[i]]
+	end
+
+	dirty_variable(self)
+	container[k] = v
+end
+
 function ReferenceMt:dereference()
+	add_dependency(self)
 	local container = self[__ROOT]
 	local keys = self[__KEYS]
 	for i = 1, #keys do
 		local key = keys[i]
-		add_dependency(container, key)
 		container = container[key]
 	end
 	return container
@@ -190,14 +290,15 @@ end
 local HalfReferenceMt = {}
 local HalfReference = {}
 function HalfReference:new(container)
+	make_container_dirtyable(container)
 	local o = {}
 	setmetatable(o, HalfReferenceMt)
-	o[__CONTAINER] = container
+	o[__ROOT] = container
 	return o
 end
 
 function HalfReferenceMt:__index(k)
-	return Reference:new(self[__CONTAINER], {k})
+	return Reference:new(self[__ROOT], {k})
 end
 
 function HalfReferenceMt:dereference() end
@@ -218,6 +319,7 @@ module.Reference = Reference
 module.HalfReference = HalfReference
 module.currentBindings = nil
 module.currentBinding = nil
+module.make_dirtyable_layout = make_dirtyable_layout
 module.clear_dependencies = clear_dependencies
 module.make_variable_dirtyable = make_variable_dirtyable
 module.make_container_dirtyable = make_container_dirtyable
