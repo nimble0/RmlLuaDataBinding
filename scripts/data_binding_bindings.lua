@@ -221,12 +221,11 @@ function AbstractContentBinding:new(element)
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
-	local source = element:GetAttribute("bind")
-	if source:len() == 0 then
-		source = element.inner_rml
+	o.source = element:GetAttribute("bind")
+	if o.source:len() == 0 then
+		o.source = element.inner_rml
 	end
-	o.binding = make_binding(source)
-	o.source = source
+	o.binding = make_binding(o.source)
 	return o
 end
 
@@ -251,8 +250,8 @@ function AbstractClassBinding:new(element)
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
-	o.binding = make_binding(element:GetAttribute("bind-class"))
-	o.source = source
+	o.source = element:GetAttribute("bind-class")
+	o.binding = make_binding(o.source)
 	return o
 end
 
@@ -278,8 +277,8 @@ function AbstractAttributeBinding:new(element, attribute)
 	self.__index = self
 	o.element = element
 	o.attribute = attribute
-	o.binding = make_binding(element:GetAttribute("bind-attribute-"..attribute))
-	o.source = source
+	o.source = element:GetAttribute("bind-attribute-"..attribute)
+	o.binding = make_binding(o.source)
 	return o
 end
 
@@ -295,8 +294,8 @@ function AbstractEventBinding:new(element, event)
 	self.__index = self
 	o.element = element
 	o.event = event
-	o.binding = make_binding(element:GetAttribute("bind-event-"..event))
-	o.source = source
+	o.source = element:GetAttribute("bind-event-"..event)
+	o.binding = make_binding(o.source)
 	return o
 end
 
@@ -324,8 +323,8 @@ function AbstractValueBinding:new(element)
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
-	o.binding, o.setBinding = make_binding(element:GetAttribute("bind-value"))()
-	o.source = source
+	o.source = element:GetAttribute("bind-value")
+	o.binding, o.setBinding = make_binding(o.source)()
 	return o
 end
 
@@ -355,8 +354,8 @@ function AbstractCheckedBinding:new(element)
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
-	o.binding, o.setBinding = make_binding(element:GetAttribute("bind-checked"))()
-	o.source = source
+	o.source = element:GetAttribute("bind-checked")
+	o.binding, o.setBinding = make_binding(o.source)()
 	return o
 end
 
@@ -388,8 +387,8 @@ function AbstractSubmitValueBinding:new(element)
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
-	o.binding, o.setBinding = make_binding(element:GetAttribute("bind-submit-value"))()
-	o.source = source
+	o.source = element:GetAttribute("bind-submit-value")
+	o.binding, o.setBinding = make_binding(o.source)()
 	return o
 end
 
@@ -421,8 +420,8 @@ function AbstractSubmitCheckedBinding:new(element)
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
-	o.binding, o.setBinding = make_binding(element:GetAttribute("bind-submit-checked"))()
-	o.source = source
+	o.source = element:GetAttribute("bind-submit-checked")
+	o.binding, o.setBinding = make_binding(o.source)()
 	return o
 end
 
@@ -556,8 +555,8 @@ function AbstractForBinding:new(element, indirectBindings)
 	self.__index = self
 	o.element = element
 	o.indirectBindings = indirectBindings
-	o.indexKey, o.valueKey, o.binding = parse_bind_for(element:GetAttribute("bind-for"))
 	o.source = element:GetAttribute("bind-for")
+	o.indexKey, o.valueKey, o.binding = parse_bind_for(o.source)
 	return o
 end
 
