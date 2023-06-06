@@ -54,7 +54,7 @@ local function bind_value_set(element, binding)
 	local currentBindings = reference.currentBindings
 	element:AddEventListener("change",
 		function(event)
-			if not element:GetAttribute("ignore-change") then
+			if not currentBindings.updating then
 				currentBindings.deferredSetBindings[binding] = event.parameters.value
 			end
 		end,
@@ -67,8 +67,11 @@ local function bind_submit_form(element, binding)
 	element:AddEventListener("submit",
 		function(event)
 			for _, binding in pairs(binding.submitBindings) do
-				local value = Element.As.ElementFormControl(binding.element).value
-				currentBindings.deferredSetBindings[binding] = value
+				local element = Element.As.ElementFormControl(binding.element)
+				if element:HasAttribute("bind-submit-dirty") then
+					local value = element.value
+					currentBindings.deferredSetBindings[binding] = value
+				end
 			end
 		end)
 end
@@ -77,7 +80,7 @@ local function bind_submit_value_set(element, bindValue)
 	local currentBindings = reference.currentBindings
 	element:AddEventListener("change",
 		function(event)
-			if not element:GetAttribute("ignore-change") then
+			if not currentBindings.updating then
 				element:SetAttribute("bind-submit-dirty", "")
 				local oldCurrentBindings = reference.currentBindings
 				reference.currentBindings = currentBindings
@@ -303,7 +306,6 @@ function AbstractEventBinding:apply(element)
 	element:AddEventListener(self.event, self.binding, true)
 end
 
-
 local ValueBinding = Binding:new()
 function ValueBinding:update()
 	self:clearVariables()
@@ -311,10 +313,8 @@ function ValueBinding:update()
 	local _, value = xpcall(self.binding, module.error_handler)
 	reference.currentBinding = nil
 
-	self.element:SetAttribute("ignore-change", "")
 	Element.As.ElementFormControl(self.element).value = value
 	self.element:DispatchEvent("change", { value = value })
-	self.element:RemoveAttribute("ignore-change")
 end
 
 local AbstractValueBinding = {}
@@ -342,10 +342,8 @@ function CheckedBinding:update()
 	local _, value = xpcall(self.binding, module.error_handler)
 	reference.currentBinding = nil
 
-	self.element:SetAttribute("ignore-change", "")
 	Element.As.ElementFormControlInput(self.element).checked = (value == self.element:GetAttribute("value"))
 	self.element:DispatchEvent("change", { value = value })
-	self.element:RemoveAttribute("ignore-change")
 end
 
 local AbstractCheckedBinding = {}
@@ -374,10 +372,8 @@ function SubmitValueBinding:update()
 		local _, value = xpcall(self.binding, module.error_handler)
 		reference.currentBinding = nil
 
-		self.element:SetAttribute("ignore-change", "")
 		Element.As.ElementFormControl(self.element).value = value
 		self.element:DispatchEvent("change", { value = value })
-		self.element:RemoveAttribute("ignore-change")
 	end
 end
 
@@ -407,10 +403,8 @@ function SubmitCheckedBinding:update()
 		local _, value = xpcall(self.binding, module.error_handler)
 		reference.currentBinding = nil
 
-		self.element:SetAttribute("ignore-change", "")
 		Element.As.ElementFormControlInput(self.element).checked = (value == self.element:GetAttribute("value"))
 		self.element:DispatchEvent("change", { value = value })
-		self.element:RemoveAttribute("ignore-change")
 	end
 end
 

@@ -46,6 +46,7 @@ function Bindings:new(element)
 	-- Workaround because we can't store a binding reference directly in a element
 	-- Store element (key) as string because element references do not satisfy equality
 	o.elementSubmitBindings = {}
+	o.updating = false
 	setmetatable(o.elementSubmitBindings, WeakValueTable)
 
 	reference.currentBindings = o
@@ -56,6 +57,7 @@ function Bindings:new(element)
 end
 
 function Bindings:update()
+	self.updating = true
 	reference.currentBindings = self
 	for _, bindingsGroup in pairs(self.direct) do
 		for element, elementBindings in pairs(bindingsGroup) do
@@ -65,12 +67,15 @@ function Bindings:update()
 		end
 	end
 	reference.currentBindings = nil
+	self.updating = false
 end
 
 function Bindings:updateDirty()
+	self.updating = true
 	reference.currentBindings = self
 	update_dirty_bindings(self.dirty)
 	reference.currentBindings = nil
+	self.updating = false
 	self.dirty = {}
 end
 
