@@ -189,6 +189,17 @@ function Binding:clearVariables()
 	reference.clear_dependencies(self)
 end
 
+function Binding:getValue()
+	self:clearVariables()
+	reference.currentBinding = self
+	local _, value = xpcall(self.binding, module.error_handler)
+	if reference.is_reference(value) then
+		return #value, value
+	else
+		return value
+	end
+	reference.currentBinding = nil
+end
 function Binding:update() end
 function Binding:singleUpdate()
 	self:updateChainUp({})
@@ -210,11 +221,7 @@ end
 
 local ContentBinding = Binding:new()
 function ContentBinding:update()
-	self:clearVariables()
-	reference.currentBinding = self
-	local _, value = xpcall(self.binding, module.error_handler)
-	reference.currentBinding = nil
-
+	local value = self:getValue()
 	self.element.inner_rml = tostring(value)
 end
 
@@ -239,11 +246,7 @@ end
 
 local ClassBinding = Binding:new()
 function ClassBinding:update()
-	self:clearVariables()
-	reference.currentBinding = self
-	local _, value = xpcall(self.binding, module.error_handler)
-	reference.currentBinding = nil
-
+	local value = self:getValue()
 	self.element.class_name = self.fixedClass .. " " .. tostring(value)
 end
 
@@ -265,11 +268,7 @@ end
 
 local AttributeBinding = Binding:new()
 function AttributeBinding:update()
-	self:clearVariables()
-	reference.currentBinding = self
-	local _, value = xpcall(self.binding, module.error_handler)
-	reference.currentBinding = nil
-
+	local value = self:getValue()
 	self.element:SetAttribute(self.attribute, tostring(value))
 end
 
@@ -308,11 +307,7 @@ end
 
 local ValueBinding = Binding:new()
 function ValueBinding:update()
-	self:clearVariables()
-	reference.currentBinding = self
-	local _, value = xpcall(self.binding, module.error_handler)
-	reference.currentBinding = nil
-
+	local value = self:getValue()
 	Element.As.ElementFormControl(self.element).value = value
 	self.element:DispatchEvent("change", { value = value })
 end
@@ -337,11 +332,7 @@ end
 
 local CheckedBinding = Binding:new()
 function CheckedBinding:update()
-	self:clearVariables()
-	reference.currentBinding = self
-	local _, value = xpcall(self.binding, module.error_handler)
-	reference.currentBinding = nil
-
+	local value = self:getValue()
 	Element.As.ElementFormControlInput(self.element).checked = (value == self.element:GetAttribute("value"))
 	self.element:DispatchEvent("change", { value = value })
 end
@@ -367,11 +358,7 @@ end
 local SubmitValueBinding = Binding:new()
 function SubmitValueBinding:update()
 	if not self.element:HasAttribute("bind-submit-dirty") then
-		self:clearVariables()
-		reference.currentBinding = self
-		local _, value = xpcall(self.binding, module.error_handler)
-		reference.currentBinding = nil
-
+		local value = self:getValue()
 		Element.As.ElementFormControl(self.element).value = value
 		self.element:DispatchEvent("change", { value = value })
 	end
@@ -398,11 +385,7 @@ end
 local SubmitCheckedBinding = Binding:new()
 function SubmitCheckedBinding:update()
 	if not self.element:HasAttribute("bind-submit-dirty") then
-		self:clearVariables()
-		reference.currentBinding = self
-		local _, value = xpcall(self.binding, module.error_handler)
-		reference.currentBinding = nil
-
+		local value = self:getValue()
 		Element.As.ElementFormControlInput(self.element).checked = (value == self.element:GetAttribute("value"))
 		self.element:DispatchEvent("change", { value = value })
 	end
@@ -446,11 +429,11 @@ end
 
 local ForBinding = Binding:new()
 function ForBinding:update()
-	self:clearVariables()
-	reference.currentBinding = self
-	local _, values = xpcall(self.binding, module.error_handler)
-	reference.currentBinding = nil
+	local values, containerReference = self:getValue()
 	self.values = values or {}
+	if containerReference == nil then
+		containerReference = reference.HalfReference:new(self.values)
+	end
 
 	local _, valuesLength = xpcall(function() return #self.values end, module.error_handler)
 	if not valuesLength then
@@ -491,7 +474,6 @@ function ForBinding:update()
 	local rIndex_ = reference.R[indexKey]
 	local it_ = _G[valueKey]
 	local rIt_ = reference.R[valueKey]
-	local containerReference = reference.HalfReference:new(self.values)
 	for i = 1, valuesLength do
 		local v = self.values[i]
 		local forElementBindings = elements[i]

@@ -285,6 +285,10 @@ function ReferenceMt:__len()
 	return ReferenceMt.dereference(self)
 end
 
+local function is_reference(ref)
+	return getmetatable(ref) == ReferenceMt
+end
+
 
 -- Can't be dereferenced, only indexed to create a Reference
 local HalfReferenceMt = {}
@@ -319,6 +323,7 @@ module.Reference = Reference
 module.HalfReference = HalfReference
 module.currentBindings = nil
 module.currentBinding = nil
+module.is_reference = is_reference
 module.make_dirtyable_layout = make_dirtyable_layout
 module.clear_dependencies = clear_dependencies
 module.make_variable_dirtyable = make_variable_dirtyable

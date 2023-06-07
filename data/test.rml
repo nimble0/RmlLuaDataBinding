@@ -188,17 +188,17 @@
 	<button onclick="make_bindings(document)">make bindings</button>
 	<button onclick="bindings:update()">update bindings</button>
 	<button onclick="bindings:updateDirty()">update dirty bindings</button>
-	<h1 id="title" bind="#R.title" bind-class="'dynamic-'..'title'" bind-event-click="print('click test1') lastClickEvent = 'test1'">Test</h1>
+	<h1 id="title" bind="R.title" bind-class="'dynamic-'..'title'" bind-event-click="print('click test1') lastClickEvent = 'test1'">Test</h1>
 	<div id="main-menu-wrapper">
 		<div bind-class="'a-class'">some text</div>
-		<div bind-for="index, option in #R.options">
+		<div bind-for="index, option in R.options">
 			<for class="wrapper">repeat me <span bind="index" /> <span bind="option" /></for>
 		</div>
 	</div>
 	<div>
-		<outerfor bind-for="position in #R.outerList">
-			<h2 bind="#R.position.title" />
-			<innerfor bind-for="colour in #R.position.innerList" bind-event-click="print('click test2', element.inner_rml) lastClickEvent = element.inner_rml">
+		<outerfor bind-for="position in R.outerList">
+			<h2 bind="R.position.title" />
+			<innerfor bind-for="colour in R.position.innerList" bind-event-click="print('click test2', element.inner_rml) lastClickEvent = element.inner_rml">
 				<span bind="colour" />
 			</innerfor>
 		</outerfor>
@@ -206,7 +206,7 @@
 	<img id="img" src="icons/health-icon.png" bind-attribute-src="imageSrc" />
 	<for2 id="bloop" bind-for="a in test3" bind="a" />
 	<input id="text-input" bind-value="data_binding.make_lens(R.name)" type="text" />
-	<div>name: <span bind="#R.name" /></div>
+	<div>name: <span bind="R.name" /></div>
 	<div bind-event-click="name = 'orange'">set name orange</div>
 	<input bind-value="data_binding.make_number_lens(R.sensitivity)" type="text" />
 	<div>sensitivity + 1: <span bind="#R.sensitivity + 1" /></div>
