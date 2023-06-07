@@ -90,6 +90,10 @@ local function clear_dependencies(binding)
 	binding.variables = {}
 end
 
+local function clear_all_dependencies(bindings)
+	dependents[bindings] = nil
+end
+
 local function add_dependency(ref)
 	if not module.currentBinding then
 		return
@@ -326,6 +330,7 @@ module.currentBinding = nil
 module.is_reference = is_reference
 module.make_dirtyable_layout = make_dirtyable_layout
 module.clear_dependencies = clear_dependencies
+module.clear_all_dependencies = clear_all_dependencies
 module.make_variable_dirtyable = make_variable_dirtyable
 module.make_container_dirtyable = make_container_dirtyable
 module.is_variable_dirtyable = is_variable_dirtyable

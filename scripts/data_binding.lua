@@ -58,6 +58,15 @@ function Bindings:new(element)
 	return o
 end
 
+function Bindings:delete()
+	reference.clear_all_dependencies(self)
+	self.direct = {}
+	self.indirect = {}
+	self.dirty = {}
+	self.deferredSetBindings = {}
+	self.elementSubmitBindings = {}
+end
+
 function Bindings:update()
 	self.updating = true
 	reference.currentBindings = self
