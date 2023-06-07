@@ -46,10 +46,11 @@ function Bindings:new(element)
 	-- Workaround because we can't store a binding reference directly in a element
 	-- Store element (key) as string because element references do not satisfy equality
 	o.elementSubmitBindings = {}
+	o.dependencies = {}
 	o.updating = false
 	setmetatable(o.elementSubmitBindings, WeakValueTable)
 
-	reference.make_dirtyable_layout(o)
+	reference.add_bindings(o)
 
 	reference.currentBindings = o
 	o:bind(element)

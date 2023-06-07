@@ -65,7 +65,6 @@
 		end
 
 		function run_tests(document)
-			data_binding.make_container_dirtyable(_G)
 			bindings:update()
 
 			local titleElement = document:GetElementById("title")
