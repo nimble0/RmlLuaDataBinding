@@ -33,7 +33,7 @@ end
 
 local Bindings = {}
 function Bindings:new(element)
-	o = o or {}
+	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 	o.direct = {}
