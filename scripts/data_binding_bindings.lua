@@ -316,7 +316,7 @@ end
 local ValueBinding = Binding:new()
 function ValueBinding:update()
 	local value = self:getValue()
-	Element.As.ElementFormControl(self.element).value = value
+	Element.As.ElementFormControl(self.element).value = tostring(value)
 	self.element:DispatchEvent("change", { value = value })
 end
 
@@ -367,7 +367,7 @@ local SubmitValueBinding = Binding:new()
 function SubmitValueBinding:update()
 	if not self.element:HasAttribute("bind-submit-dirty") then
 		local value = self:getValue()
-		Element.As.ElementFormControl(self.element).value = value
+		Element.As.ElementFormControl(self.element).value = tostring(value)
 		self.element:DispatchEvent("change", { value = value })
 	end
 end

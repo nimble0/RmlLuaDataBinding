@@ -119,7 +119,7 @@ function Bindings:bind(
 		else
 			local id = bindingId
 			bindingId = bindingId + 1
-			element:SetAttribute("bind-id", id)
+			element:SetAttribute("bind-id", tostring(id))
 
 			self.indirect[id] = {abstractBinding}
 		end
@@ -175,12 +175,12 @@ function Bindings:bind(
 		if useForBindingId then
 			local id = bindingId
 			bindingId = bindingId + 1
-			element:SetAttribute("bind-for-id", id)
+			element:SetAttribute("bind-for-id", tostring(id))
 			self.indirect[id] = abstractElementBindings
 		elseif useBindingId then
 			local id = bindingId
 			bindingId = bindingId + 1
-			element:SetAttribute("bind-id", id)
+			element:SetAttribute("bind-id", tostring(id))
 			self.indirect[id] = abstractElementBindings
 		else
 			local elementBindings = {}

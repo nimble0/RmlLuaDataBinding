@@ -132,7 +132,7 @@
 				"bind nested dirty variable")
 
 			local textInputElement = document:GetElementById("text-input")
-			textInputElement.value = "beans"
+			Element.As.ElementFormControlInput(textInputElement).value = "beans"
 			textInputElement:DispatchEvent("change", {value = "beans"})
 			bindings:setDeferredBindings()
 			bindings:updateDirty()
