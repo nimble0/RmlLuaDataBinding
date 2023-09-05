@@ -20,16 +20,16 @@ local function split(s, d)
 	return result
 end
 
-local function make_binding(source)
-	local command, error = load("return " .. source)
+local function make_binding(env, source)
+	local command, error = load("return " .. source, nil, "t", env)
 	if command == nil then
-		command, error = load(source)
+		command, error = load(source, nil, "t", env)
 	end
 
 	return command, error
 end
 
-local function parse_bind_for(value)
+local function parse_bind_for(env, value)
 	local a, b = value:find("%sin%s")
 	local variables = split(value:sub(1, a), ",")
 
@@ -47,7 +47,7 @@ local function parse_bind_for(value)
 	end
 	local eval = value:sub(b + 1)
 
-	return indexKey, valueKey, make_binding(eval)
+	return indexKey, valueKey, make_binding(env, eval)
 end
 
 local function bind_value_set(element, binding)
@@ -226,7 +226,7 @@ function ContentBinding:update()
 end
 
 local AbstractContentBinding = {}
-function AbstractContentBinding:new(element)
+function AbstractContentBinding:new(env, element)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
@@ -235,7 +235,7 @@ function AbstractContentBinding:new(element)
 	if o.source:len() == 0 then
 		o.source = element.inner_rml
 	end
-	o.binding = make_binding(o.source)
+	o.binding = make_binding(env, o.source)
 	return o
 end
 
@@ -251,13 +251,13 @@ function ClassBinding:update()
 end
 
 local AbstractClassBinding = {}
-function AbstractClassBinding:new(element)
+function AbstractClassBinding:new(env, element)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
 	o.source = element:GetAttribute("bind-class")
-	o.binding = make_binding(o.source)
+	o.binding = make_binding(env, o.source)
 	return o
 end
 
@@ -273,14 +273,14 @@ function AttributeBinding:update()
 end
 
 local AbstractAttributeBinding = {}
-function AbstractAttributeBinding:new(element, attribute)
+function AbstractAttributeBinding:new(env, element, attribute)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
 	o.attribute = attribute
 	o.source = element:GetAttribute("bind-attribute-"..attribute)
-	o.binding = make_binding(o.source)
+	o.binding = make_binding(env, o.source)
 	return o
 end
 
@@ -290,14 +290,14 @@ end
 
 
 local AbstractEventBinding = {}
-function AbstractEventBinding:new(element, event)
+function AbstractEventBinding:new(env, element, event)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
 	o.event = event
 	o.source = element:GetAttribute("bind-event-"..event)
-	o.binding = make_binding(o.source)
+	o.binding = make_binding(env, o.source)
 	return o
 end
 
@@ -313,13 +313,13 @@ function ValueBinding:update()
 end
 
 local AbstractValueBinding = {}
-function AbstractValueBinding:new(element)
+function AbstractValueBinding:new(env, element)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
 	o.source = element:GetAttribute("bind-value")
-	o.binding, o.setBinding = make_binding(o.source)()
+	o.binding, o.setBinding = make_binding(env, o.source)()
 	return o
 end
 
@@ -338,13 +338,13 @@ function CheckedBinding:update()
 end
 
 local AbstractCheckedBinding = {}
-function AbstractCheckedBinding:new(element)
+function AbstractCheckedBinding:new(env, element)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
 	o.source = element:GetAttribute("bind-checked")
-	o.binding, o.setBinding = make_binding(o.source)()
+	o.binding, o.setBinding = make_binding(env, o.source)()
 	return o
 end
 
@@ -365,13 +365,13 @@ function SubmitValueBinding:update()
 end
 
 local AbstractSubmitValueBinding = {}
-function AbstractSubmitValueBinding:new(element)
+function AbstractSubmitValueBinding:new(env, element)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
 	o.source = element:GetAttribute("bind-submit-value")
-	o.binding, o.setBinding = make_binding(o.source)()
+	o.binding, o.setBinding = make_binding(env, o.source)()
 	return o
 end
 
@@ -392,13 +392,13 @@ function SubmitCheckedBinding:update()
 end
 
 local AbstractSubmitCheckedBinding = {}
-function AbstractSubmitCheckedBinding:new(element)
+function AbstractSubmitCheckedBinding:new(env, element)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
 	o.source = element:GetAttribute("bind-submit-checked")
-	o.binding, o.setBinding = make_binding(o.source)()
+	o.binding, o.setBinding = make_binding(env, o.source)()
 	return o
 end
 
@@ -412,7 +412,7 @@ end
 local SubmitBinding = Binding:new()
 
 local AbstractSubmitBinding = {}
-function AbstractSubmitBinding:new(element)
+function AbstractSubmitBinding:new(env, element)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
@@ -470,18 +470,18 @@ function ForBinding:update()
 		table.remove(elements, #elements)
 	end
 
-	local index_ = _G[indexKey]
-	local rIndex_ = reference.R[indexKey]
-	local it_ = _G[valueKey]
-	local rIt_ = reference.R[valueKey]
+	local index_ = self.env[indexKey]
+	local rIndex_ = self.env.R[indexKey]
+	local it_ = self.env[valueKey]
+	local rIt_ = self.env.R[valueKey]
 	for i = 1, valuesLength do
 		local v = self.values[i]
 		local forElementBindings = elements[i]
 
-		_G[indexKey] = i
-		reference.R[indexKey] = nil
-		_G[valueKey] = v
-		reference.R[valueKey] = containerReference[i]
+		self.env[indexKey] = i
+		self.env.R[indexKey] = nil
+		self.env[valueKey] = v
+		self.env.R[valueKey] = containerReference[i]
 
 		for _, bindingsGroup in pairs(forElementBindings.bindings) do
 			for element, bindings in pairs(bindingsGroup) do
@@ -491,10 +491,10 @@ function ForBinding:update()
 			end
 		end
 	end
-	_G[indexKey] = index_
-	reference.R[indexKey] = rIndex_
-	_G[valueKey] = it_
-	reference.R[valueKey] = rIt_
+	self.env[indexKey] = index_
+	self.env.R[indexKey] = rIndex_
+	self.env[valueKey] = it_
+	self.env.R[valueKey] = rIt_
 end
 
 function ForBinding:updateChainDown(chain)
@@ -502,37 +502,38 @@ function ForBinding:updateChainDown(chain)
 	if next then
 		table.remove(chain, #chain)
 
-		local index_ = _G[self.indexKey]
-		local rIndex_ = reference.R[self.indexKey]
-		local it_ = _G[self.valueKey]
-		local rIt_ = reference.R[self.valueKey]
+		local index_ = self.env[self.indexKey]
+		local rIndex_ = self.env.R[self.indexKey]
+		local it_ = self.env[self.valueKey]
+		local rIt_ = self.env.R[self.valueKey]
 		local containerReference = reference.HalfReference:new(self.values)
 
-		_G[self.indexKey] = next.index
-		reference.R[self.indexKey] = reference.HalfReference:new(next.index)
-		_G[self.valueKey] = self.values[next.index]
-		reference.R[self.valueKey] = containerReference[next.index]
+		self.env[self.indexKey] = next.index
+		self.env.R[self.indexKey] = reference.HalfReference:new(next.index)
+		self.env[self.valueKey] = self.values[next.index]
+		self.env.R[self.valueKey] = containerReference[next.index]
 
 		next.binding:updateChainDown(chain)
 
-		_G[self.indexKey] = index_
-		reference.R[self.indexKey] = rIndex_
-		_G[self.valueKey] = it_
-		reference.R[self.valueKey] = rIt_
+		self.env[self.indexKey] = index_
+		self.env.R[self.indexKey] = rIndex_
+		self.env[self.valueKey] = it_
+		self.env.R[self.valueKey] = rIt_
 	else
 		self:update()
 	end
 end
 
 local AbstractForBinding = {}
-function AbstractForBinding:new(element, indirectBindings)
+function AbstractForBinding:new(env, element, indirectBindings)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
 	o.element = element
 	o.indirectBindings = indirectBindings
 	o.source = element:GetAttribute("bind-for")
-	o.indexKey, o.valueKey, o.binding = parse_bind_for(o.source)
+	o.indexKey, o.valueKey, o.binding = parse_bind_for(env, o.source)
+	o.env = env
 	return o
 end
 
@@ -544,7 +545,8 @@ function AbstractForBinding:apply(element)
 		indexKey = self.indexKey,
 		valueKey = self.valueKey,
 		elements = {},
-		source = self.source}
+		source = self.source,
+		env = self.env}
 end
 
 

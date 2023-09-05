@@ -15,7 +15,12 @@
 		.right { float: right; }
 	</style>
 	<script>
-		R = data_binding.R
+		local data_binding = require("data_binding")
+
+		R = data_binding.R(_ENV)
+		if testingInterface == nil then
+			testingInterface = {}
+		end
 
 		bindings = nil
 
@@ -60,11 +65,11 @@
 		testDocument = nil
 		lastClickEvent = ""
 
-		function make_bindings(document)
-			bindings = data_binding.make_bindings(document)
+		function testingInterface.make_bindings(document)
+			bindings = data_binding.make_bindings(document, _ENV)
 		end
 
-		function run_tests(document)
+		function testingInterface.run_tests(document)
 			bindings:update()
 
 			local titleElement = document:GetElementById("title")
@@ -183,8 +188,8 @@
 		end
 	</script>
 </head>
-<body id="body" onload="testDocument = document">
-	<button onclick="make_bindings(document)">make bindings</button>
+<body id="body" onload="testingInterface.document = document">
+	<button onclick="testingInterface.make_bindings(document)">make bindings</button>
 	<button onclick="bindings:update()">update bindings</button>
 	<button onclick="bindings:updateDirty()">update dirty bindings</button>
 	<h1 id="title" bind="R.title" bind-class="'dynamic-'..'title'" bind-event-click="print('click test1') lastClickEvent = 'test1'">Test</h1>

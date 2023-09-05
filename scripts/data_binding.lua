@@ -32,7 +32,7 @@ end
 
 
 local Bindings = {}
-function Bindings:new(element)
+function Bindings:new(element, env)
 	local o = {}
 	setmetatable(o, self)
 	self.__index = self
@@ -48,6 +48,7 @@ function Bindings:new(element)
 	o.elementSubmitBindings = {}
 	o.dependencies = {}
 	o.updating = false
+	o.env = env
 	setmetatable(o.elementSubmitBindings, WeakValueTable)
 
 	reference.add_bindings(o)
@@ -111,7 +112,7 @@ function Bindings:bind(
 	local useForBindingId = false
 	if element:HasAttribute("bind-for") then
 		element:SetClass("bind-for-base", true)
-		local abstractBinding = bindings.AbstractForBinding:new(element, self.indirect)
+		local abstractBinding = bindings.AbstractForBinding:new(self.env, element, self.indirect)
 
 		if not useBindingId then
 			self.direct[elementBindingPriorities[element.tag_name] or 1][element] = {abstractBinding:apply(element)}
@@ -129,45 +130,45 @@ function Bindings:bind(
 	end
 
 	if element:HasAttribute("bind-class") then
-		table.insert(abstractElementBindings, bindings.AbstractClassBinding:new(element))
+		table.insert(abstractElementBindings, bindings.AbstractClassBinding:new(self.env, element))
 	end
 
 	for attribute, bind in pairs(element.attributes) do
 		if attribute:sub(1, 15) == "bind-attribute-" then
 			local bindAttribute = attribute:sub(16)
-			table.insert(abstractElementBindings, bindings.AbstractAttributeBinding:new(element, bindAttribute))
+			table.insert(abstractElementBindings, bindings.AbstractAttributeBinding:new(self.env, element, bindAttribute))
 		end
 	end
 
 	for attribute, bind in pairs(element.attributes) do
 		if attribute:sub(1, 11) == "bind-event-" then
 			local event = attribute:sub(12)
-			table.insert(abstractElementBindings, bindings.AbstractEventBinding:new(element, event))
+			table.insert(abstractElementBindings, bindings.AbstractEventBinding:new(self.env, element, event))
 		end
 	end
 
 	if element:HasAttribute("bind-value") then
-		table.insert(abstractElementBindings, bindings.AbstractValueBinding:new(element))
+		table.insert(abstractElementBindings, bindings.AbstractValueBinding:new(self.env, element))
 	end
 
 	if element:HasAttribute("bind-checked") then
-		table.insert(abstractElementBindings, bindings.AbstractCheckedBinding:new(element))
+		table.insert(abstractElementBindings, bindings.AbstractCheckedBinding:new(self.env, element))
 	end
 
 	if element:HasAttribute("bind-submit-value") then
-		table.insert(abstractElementBindings, bindings.AbstractSubmitValueBinding:new(element))
+		table.insert(abstractElementBindings, bindings.AbstractSubmitValueBinding:new(self.env, element))
 	end
 
 	if element:HasAttribute("bind-submit-checked") then
-		table.insert(abstractElementBindings, bindings.AbstractSubmitCheckedBinding:new(element))
+		table.insert(abstractElementBindings, bindings.AbstractSubmitCheckedBinding:new(self.env, element))
 	end
 
 	if element:HasAttribute("bind-submit") then
-		table.insert(abstractElementBindings, bindings.AbstractSubmitBinding:new(element))
+		table.insert(abstractElementBindings, bindings.AbstractSubmitBinding:new(self.env, element))
 	end
 
 	if element:HasAttribute("bind") then
-		table.insert(abstractElementBindings, bindings.AbstractContentBinding:new(element))
+		table.insert(abstractElementBindings, bindings.AbstractContentBinding:new(self.env, element))
 	end
 
 	if #abstractElementBindings > 0 then
@@ -204,8 +205,8 @@ function Bindings:bind(
 	end
 end
 
-local function make_bindings(element)
-	return Bindings:new(element)
+local function make_bindings(element, env)
+	return Bindings:new(element, env)
 end
 
 bindings.error_handler = error_handler
