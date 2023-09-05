@@ -61,9 +61,13 @@ local function bind_value_set(element, binding)
 		true)
 end
 
+local submitBindingId = 0
 local function bind_submit_form(element, binding)
 	local currentBindings = reference.currentBindings
-	currentBindings.elementSubmitBindings[tostring(element)] = binding
+	local id = submitBindingId
+	submitBindingId = submitBindingId + 1
+	currentBindings.elementSubmitBindings[id] = binding
+	element:SetAttribute("bind-submit-id", tostring(id))
 	element:AddEventListener("submit",
 		function(event)
 			for _, binding in pairs(binding.submitBindings) do
@@ -90,15 +94,19 @@ local function bind_submit_value_set(element, bindValue)
 		end,
 		true)
 
-	local elementSubmitBindings = currentBindings.elementSubmitBindings
-	local containerForm = element.parent_node
-	while containerForm ~= nil and elementSubmitBindings[tostring(containerForm)] == nil do
+	local containerForm = element
+	local bindSubmitId = nil
+	while containerForm ~= nil and bindSubmitId == nil do
 		containerForm = containerForm.parent_node
+		if containerForm ~= nil then
+			bindSubmitId = tonumber(containerForm:GetAttribute("bind-submit-id"))
+		end
 	end
 	if containerForm == nil then
 		return
 	end
-	table.insert(elementSubmitBindings[tostring(containerForm)].submitBindings, bindValue)
+	local submitBinding = currentBindings.elementSubmitBindings[bindSubmitId]
+	table.insert(submitBinding.submitBindings, bindValue)
 end
 
 local function bind_for_sub_element(
