@@ -466,13 +466,13 @@ function ForBinding:update()
 		forElement:SetClass("bind-for-base", false)
 		forElement.inner_rml = self.element.inner_rml
 		bind_for_child(elements, self.indirectBindings, forElement, self)
-		if data_binding.onCreateElement then
-			xpcall(data_binding.onCreateElement, module.error_handler, forElement)
+		if module.callbacks.onCreateElement then
+			xpcall(module.callbacks.onCreateElement, module.error_handler, forElement)
 		end
 	end
 	while valuesLength < #elements do
-		if data_binding.onDestroyElement then
-			xpcall(data_binding.onDestroyElement, module.error_handler, elements[#elements].element)
+		if module.callbacks.onDestroyElement then
+			xpcall(module.callbacks.onDestroyElement, module.error_handler, elements[#elements].element)
 		end
 		self.element.parent_node:RemoveChild(elements[#elements].element)
 		table.remove(elements, #elements)

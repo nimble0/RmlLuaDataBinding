@@ -2,6 +2,8 @@ local bindings = require("data_binding_bindings")
 local reference = require("data_binding_reference")
 local lenses = require("data_binding_lenses")
 
+local module = {}
+
 local WeakValueTable = { __mode = "v" }
 
 local bindingId = 0
@@ -205,8 +207,8 @@ function Bindings:bind(
 				end
 			end
 			self.direct[elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
-			if data_binding.onCreateElement then
-				xpcall(data_binding.onCreateElement, error_handler, element)
+			if module.onCreateElement then
+				xpcall(module.onCreateElement, error_handler, element)
 			end
 		end
 	end
@@ -225,30 +227,30 @@ end
 
 bindings.error_handler = error_handler
 bindings.elementBindingPriorities = elementBindingPriorities
+bindings.callbacks = module
 
+module.make_bindings = make_bindings
+module.make_lens = lenses.make_lens
+module.make_number_lens = lenses.make_number_lens
+module.make_float_lens = lenses.make_float_lens
+module.make_boolean_lens = lenses.make_boolean_lens
+module.make_enum_lens = lenses.make_enum_lens
+module.onCreateElement = nil
+module.onDestroyElement = nil
 
-return {
-	make_bindings = make_bindings,
-	make_lens = lenses.make_lens,
-	make_number_lens = lenses.make_number_lens,
-	make_float_lens = lenses.make_float_lens,
-	make_boolean_lens = lenses.make_boolean_lens,
-	make_enum_lens = lenses.make_enum_lens,
-	onCreateElement = nil,
-	onDestroyElement = nil,
+module.make_variable_dirtyable = reference.make_variable_dirtyable
+module.make_container_dirtyable = reference.make_container_dirtyable
+module.is_variable_dirtyable = reference.is_variable_dirtyable
+-- Dirty bindings dependent on variable
+module.dirty_variable = reference.dirty_variable
+module.set_variable = reference.set_variable
 
-	make_variable_dirtyable = reference.make_variable_dirtyable,
-	make_container_dirtyable = reference.make_container_dirtyable,
-	is_variable_dirtyable = reference.is_variable_dirtyable,
-	-- Dirty bindings dependent on variable
-	dirty_variable = reference.dirty_variable,
-	set_variable = reference.set_variable,
+-- Index R to create references to global variables and special variables (for binding variables).
+-- Call R with a table argument to create a half reference, index the half reference to create a
+-- full reference.
+-- When a reference is dereferenced (with the length (#) operator) within a binding, it marks the
+-- binding as dependent on the variable and all ancestor variables
+-- eg/ A binding that uses `#R.a.b` is dependent on both `a` and `a.b`.
+module.R = reference.R
 
-	-- Index R to create references to global variables and special variables (for binding variables).
-	-- Call R with a table argument to create a half reference, index the half reference to create a
-	-- full reference.
-	-- When a reference is dereferenced (with the length (#) operator) within a binding, it marks the
-	-- binding as dependent on the variable and all ancestor variables
-	-- eg/ A binding that uses `#R.a.b` is dependent on both `a` and `a.b`.
-	R = reference.R,
-}
+return module
