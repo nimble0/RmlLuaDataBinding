@@ -108,17 +108,6 @@ local function add_dependency(ref)
 	set_insert(module.currentBinding.variables, ref)
 end
 
-local function get_container_key(ref)
-	local container = ref[__ROOT]
-	local keys = ref[__KEYS]
-	for i = 1, #keys - 1 do
-		container = container[keys[i]]
-	end
-	local key = keys[#keys]
-
-	return container, key
-end
-
 local function get_children(t, exclude_key)
 	local children = {}
 	local check = { t }
@@ -191,8 +180,24 @@ local function dirty_variable(ref)
 end
 
 local function set_variable(ref, value)
-	local container, key = get_container_key(ref)
-	container[key] = value
+	local container = ref[__ROOT]
+	local keys = ref[__KEYS]
+	for i = 1, #keys - 1 do
+		local part = keys[i]
+		local inside = container[part]
+		if inside then
+			container = inside
+		else
+			container[part] = {}
+			container = container[part]
+		end
+	end
+	local key = keys[#keys]
+
+	if container[key] ~= value then
+		container[key] = value
+		dirty_variable(ref)
+	end
 end
 
 
@@ -239,6 +244,9 @@ function ReferenceMt:dereference()
 	for i = 1, #keys do
 		local key = keys[i]
 		container = container[key]
+		if container == nil then
+			return nil
+		end
 	end
 	return container
 end
