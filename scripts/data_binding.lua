@@ -41,7 +41,7 @@ function Bindings:new(element, env)
 		o.direct[priority] = {}
 	end
 	o.indirect = {}
-	o.dirty = {}
+	o.dirty = nil
 	o.deferredSetBindings = {}
 	-- Workaround because we can't store a binding reference directly in a element
 	-- Store element (key) as string because element references do not satisfy equality
@@ -70,6 +70,16 @@ function Bindings:delete()
 end
 
 function Bindings:update()
+	if self.dirty then
+		self:updateDirty()
+	else
+		self:updateFull()
+	end
+end
+
+function Bindings:updateFull()
+	self.dirty = {}
+
 	self.updating = true
 	reference.currentBindings = self
 	for _, bindingsGroup in pairs(self.direct) do
@@ -84,6 +94,10 @@ function Bindings:update()
 end
 
 function Bindings:updateDirty()
+	if not self.dirty then
+		error("Must do full update before updateDirty", 2)
+	end
+
 	self.updating = true
 	reference.currentBindings = self
 	update_dirty_bindings(self.dirty)
