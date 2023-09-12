@@ -237,6 +237,36 @@ function ReferenceMt:__newindex(k, v)
 	container[k] = v
 end
 
+function ReferenceMt:__tostring()
+	local container = self[__ROOT]
+	local keys = self[__KEYS]
+
+	local parts = { tostring(container) }
+	for i = 1, #keys do
+		table.insert(parts, tostring(keys[i]))
+	end
+
+	return table.concat(parts, ".")
+end
+
+function ReferenceMt:__eq(b)
+	local container = self[__ROOT]
+	local keys = self[__KEYS]
+	local bContainer = b[__ROOT]
+	local bKeys = b[__KEYS]
+
+	if container ~= bContainer or #keys ~= #bKeys then
+		return false
+	end
+	for i = 1, #keys do
+		if keys[i] ~= bKeys[i] then
+			return false
+		end
+	end
+
+	return true
+end
+
 function ReferenceMt:dereference()
 	add_dependency(self)
 	local container = self[__ROOT]
