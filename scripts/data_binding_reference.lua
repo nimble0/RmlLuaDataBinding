@@ -1,181 +1,21 @@
+local set = require("set")
+
 local module = {}
-
-local function set_insert(t, v)
-	for i = 1, #t do
-		if t[i] == v then
-			return
-		end
-	end
-	table.insert(t, v)
-end
-
-local function set_remove(t, v)
-	for i = 1, #t do
-		if t[i] == v then
-			table.remove(t, i)
-			return
-		end
-	end
-end
-
 
 local WeakTable = { __mode = "kv" }
 local WeakKeyTable = { __mode = "k" }
 
--- dependents layout
--- {
--- 	Bindings
--- 	{
--- 		root container
--- 		{
--- 			key1
--- 			{
--- 				bindings (__BINDINGS)
--- 				{
--- 					binding
--- 				}
--- 				key2
--- 				{
--- 					bindings (__BINDINGS)
--- 					{
--- 						binding
--- 					}
--- 				}
--- 			}
--- 		}
--- 	}
--- }
-local bindingsCollections = {}
-setmetatable(bindingsCollections, WeakTable)
-
 -- Unique keys to prevent conflicting with other keys in index metamethod
 local __ROOT = {}
 local __KEYS = {}
-local __DIRTYABLE_CONTAINER = {}
-local __BINDINGS = {}
 
+local dirtyListeners = {}
+local accessListeners = {}
 
-local function add_bindings(bindings)
-	table.insert(bindingsCollections, bindings)
-end
-
-local function clear_dependencies(binding)
-	local bindingsDependencies = module.currentBindings.dependencies
-	for i = #binding.variables, 1, -1 do
-		local ref = binding.variables[i]
-		local root = ref[__ROOT]
-		local keys = ref[__KEYS]
-		local refDependentBindings = bindingsDependencies[root]
-		if refDependentBindings ~= nil then
-			for i = 1, #keys do
-				local key = keys[i]
-				refDependentBindings = refDependentBindings[key]
-			end
-			set_remove(refDependentBindings[__BINDINGS], binding)
-		end
-	end
-	binding.variables = {}
-end
-
-local function clear_all_dependencies(bindings)
-	bindings.dependencies = {}
-end
-
-local function add_dependency(ref)
-	if not module.currentBinding then
-		return
-	end
-
-	local root = ref[__ROOT]
-	local keys = ref[__KEYS]
-	local bindingsDependencies = module.currentBindings.dependencies
-	local refDependentBindings = bindingsDependencies[root]
-	if refDependentBindings == nil then
-		bindingsDependencies[root] = {}
-		refDependentBindings = bindingsDependencies[root]
-		refDependentBindings[__BINDINGS] = {}
-	end
-	for i = 1, #keys do
-		local key = keys[i]
-		if refDependentBindings[key] == nil then
-			refDependentBindings[key] = {}
-			refDependentBindings[key][__BINDINGS] = {}
-		end
-		refDependentBindings = refDependentBindings[key]
-	end
-	set_insert(refDependentBindings[__BINDINGS], module.currentBinding)
-
-	set_insert(module.currentBinding.variables, ref)
-end
-
-local function get_children(t, exclude_key)
-	local children = {}
-	local check = { t }
-	while #check > 0 do
-		local newCheck = {}
-		for _, t in pairs(check) do
-			for k, v in pairs(t) do
-				if k ~= exclude_key then
-					table.insert(children, v)
-					if type(v) == "table" then
-						table.insert(newCheck, v)
-					end
-				end
-			end
-		end
-		check = newCheck
-	end
-
-	return children
-end
 
 local function dirty_variable(ref)
-	local root = ref[__ROOT]
-	local keys = ref[__KEYS]
-	for _, bindingsCollection in pairs(bindingsCollections) do
-		local bindingsDependencies = bindingsCollection.dependencies
-		local refDependentBindings = bindingsDependencies[root]
-		if refDependentBindings ~= nil then
-			for i = 1, #keys do
-				local key = keys[i]
-				if refDependentBindings[key] ~= nil then
-					refDependentBindings = refDependentBindings[key]
-				else
-					refDependentBindings = nil
-					break
-				end
-			end
-		end
-
-		if refDependentBindings ~= nil then
-			-- Find dirtied bindings
-			local dirtiedBindings = {}
-			local refs = get_children(refDependentBindings, __BINDINGS)
-			table.insert(refs, refDependentBindings)
-			for _, ref in pairs(refs) do
-				for _, binding in pairs(ref[__BINDINGS]) do
-					table.insert(dirtiedBindings, binding)
-				end
-			end
-
-			-- Add to Bindings.dirty structure
-			for i = 1, #dirtiedBindings do
-				local binding = dirtiedBindings[i]
-				if binding ~= bindingsCollection.ignoreDirtyBinding then
-					local lineage = {binding}
-					while lineage[#lineage].container do
-						table.insert(lineage, lineage[#lineage].container)
-					end
-
-					local d = bindingsCollection.dirty
-					for i = #lineage, 2, -1 do
-						d[lineage[i]] = d[lineage[i]] or {}
-						d = d[lineage[i]]
-					end
-					d[binding] = true
-				end
-			end
-		end
+	for i = 1, #dirtyListeners do
+		dirtyListeners[i](ref)
 	end
 end
 
@@ -268,7 +108,10 @@ function ReferenceMt:__eq(b)
 end
 
 function ReferenceMt:dereference()
-	add_dependency(self)
+	for i = 1, #accessListeners do
+		accessListeners[i](self)
+	end
+
 	local container = self[__ROOT]
 	local keys = self[__KEYS]
 	for i = 1, #keys do
@@ -284,6 +127,18 @@ end
 -- Return underlying value and mark as a dependency
 function ReferenceMt:__len()
 	return ReferenceMt.dereference(self)
+end
+
+function Reference.is(ref)
+	return getmetatable(ref) == ReferenceMt
+end
+
+function Reference.get_root(ref)
+	return ref[__ROOT]
+end
+
+function Reference.get_keys(ref)
+	return ref[__KEYS]
 end
 
 local function is_reference(ref)
@@ -321,13 +176,11 @@ end
 module.R = R
 module.Reference = Reference
 module.HalfReference = HalfReference
-module.currentBindings = nil
-module.currentBinding = nil
-module.add_bindings = add_bindings
-module.is_reference = is_reference
-module.clear_dependencies = clear_dependencies
-module.clear_all_dependencies = clear_all_dependencies
 module.dirty_variable = dirty_variable
 module.set_variable = set_variable
+module.add_dirty_listener = function(l) set.insert(dirtyListeners, l) end
+module.remove_dirty_listener = function(l) set.remove(dirtyListeners, l) end
+module.add_access_listener = function(l) set.insert(accessListeners, l) end
+module.remove_access_listener = function(l) set.remove(accessListeners, l) end
 
 return module

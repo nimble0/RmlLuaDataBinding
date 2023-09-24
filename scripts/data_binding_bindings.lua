@@ -51,7 +51,7 @@ local function parse_bind_for(env, value)
 end
 
 local function bind_value_set(element, binding)
-	local currentBindings = reference.currentBindings
+	local currentBindings = module.currentBindings
 	element:AddEventListener("change",
 		function(event)
 			if not currentBindings.updating then
@@ -63,7 +63,7 @@ end
 
 local submitBindingId = 0
 local function bind_submit_form(element, binding)
-	local currentBindings = reference.currentBindings
+	local currentBindings = module.currentBindings
 	local id = submitBindingId
 	submitBindingId = submitBindingId + 1
 	currentBindings.elementSubmitBindings[id] = binding
@@ -81,15 +81,15 @@ local function bind_submit_form(element, binding)
 end
 
 local function bind_submit_value_set(element, bindValue)
-	local currentBindings = reference.currentBindings
+	local currentBindings = module.currentBindings
 	element:AddEventListener("change",
 		function(event)
 			if not currentBindings.updating then
 				element:SetAttribute("bind-submit-dirty", "")
-				local oldCurrentBindings = reference.currentBindings
-				reference.currentBindings = currentBindings
+				local oldCurrentBindings = module.currentBindings
+				module.currentBindings = currentBindings
 				bindValue:clearVariables()
-				reference.currentBindings = oldCurrentBindings
+				module.currentBindings = oldCurrentBindings
 			end
 		end,
 		true)
@@ -194,19 +194,33 @@ function Binding:new(o)
 end
 
 function Binding:clearVariables()
-	reference.clear_dependencies(self)
+	local bindingsDependencies = module.currentBindings.dependencies
+	for i = #self.variables, 1, -1 do
+		local ref = self.variables[i]
+		local root = ref[__ROOT]
+		local keys = ref[__KEYS]
+		local refDependentBindings = bindingsDependencies[root]
+		if refDependentBindings ~= nil then
+			for i = 1, #keys do
+				local key = keys[i]
+				refDependentBindings = refDependentBindings[key]
+			end
+			set_remove(refDependentBindings[__BINDINGS], self)
+		end
+	end
+	self.variables = {}
 end
 
 function Binding:getValue()
 	self:clearVariables()
-	reference.currentBinding = self
+	module.currentBinding = self
 	local _, value = xpcall(self.binding, module.error_handler)
-	if reference.is_reference(value) then
+	if reference.Reference.is(value) then
 		return #value, value
 	else
 		return value
 	end
-	reference.currentBinding = nil
+	module.currentBinding = nil
 end
 function Binding:update() end
 function Binding:singleUpdate()

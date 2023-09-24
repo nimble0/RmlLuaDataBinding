@@ -1,11 +1,15 @@
 local bindings = require("data_binding_bindings")
 local reference = require("data_binding_reference")
 local lenses = require("data_binding_lenses")
+local set = require("set")
+
 
 local module = {}
 
 local WeakValueTable = { __mode = "v" }
 
+local allBindings = {}
+setmetatable(allBindings, WeakValueTable)
 local bindingId = 0
 
 -- Lower priority values are updated first
@@ -16,6 +20,9 @@ local elementBindingPriorities = {
 	option = 1,
 	select = 2,
 }
+
+-- Unique keys to prevent conflicting with other keys in index metamethod
+local __BINDINGS = {}
 
 local function error_handler(m)
 	print(m)
@@ -48,27 +55,48 @@ function Bindings:new(element, env)
 	-- Workaround because we can't store a binding reference directly in a element
 	-- Store element (key) as string because element references do not satisfy equality
 	o.elementSubmitBindings = {}
+	-- dependencies layout
+	-- {
+	-- 	root container
+	-- 	{
+	-- 		key1
+	-- 		{
+	-- 			bindings (__BINDINGS)
+	-- 			{
+	-- 				binding
+	-- 			}
+	-- 			key2
+	-- 			{
+	-- 				bindings (__BINDINGS)
+	-- 				{
+	-- 					binding
+	-- 				}
+	-- 			}
+	-- 		}
+	-- 	}
+	-- }
 	o.dependencies = {}
 	o.updating = false
 	o.env = env
 	setmetatable(o.elementSubmitBindings, WeakValueTable)
 
-	reference.add_bindings(o)
+	table.insert(allBindings, o)
 
-	reference.currentBindings = o
+	bindings.currentBindings = o
 	o:bind(element)
-	reference.currentBindings = nil
+	bindings.currentBindings = nil
 
 	return o
 end
 
 function Bindings:delete()
-	reference.clear_all_dependencies(self)
+	set.remove(allBindings, self)
 	self.direct = {}
 	self.indirect = {}
 	self.dirty = {}
 	self.deferredSetBindings = {}
 	self.elementSubmitBindings = {}
+	self.dependencies = {}
 end
 
 function Bindings:update()
@@ -83,7 +111,7 @@ function Bindings:updateFull()
 	self.dirty = {}
 
 	self.updating = true
-	reference.currentBindings = self
+	bindings.currentBindings = self
 	for _, bindingsGroup in pairs(self.direct) do
 		for element, elementBindings in pairs(bindingsGroup) do
 			for i = 1, #elementBindings do
@@ -91,7 +119,7 @@ function Bindings:updateFull()
 			end
 		end
 	end
-	reference.currentBindings = nil
+	bindings.currentBindings = nil
 	self.updating = false
 end
 
@@ -101,21 +129,21 @@ function Bindings:updateDirty()
 	end
 
 	self.updating = true
-	reference.currentBindings = self
+	bindings.currentBindings = self
 	update_dirty_bindings(self.dirty)
-	reference.currentBindings = nil
+	bindings.currentBindings = nil
 	self.updating = false
 	self.dirty = {}
 end
 
 function Bindings:setDeferredBindings()
-	reference.currentBindings = self
+	bindings.currentBindings = self
 	for binding, value in pairs(self.deferredSetBindings) do
-		reference.currentBindings.ignoreDirtyBinding = binding
+		self.ignoreDirtyBinding = binding
 		binding.setBinding(value)
-		reference.currentBindings.ignoreDirtyBinding = nil
+		self.ignoreDirtyBinding = nil
 	end
-	reference.currentBindings = nil
+	bindings.currentBindings = nil
 	self.deferredSetBindings = {}
 end
 
@@ -221,6 +249,102 @@ function Bindings:bind(
 	end
 end
 
+local function get_children(t, exclude_key)
+	local children = {}
+	local check = { t }
+	while #check > 0 do
+		local newCheck = {}
+		for _, t in pairs(check) do
+			for k, v in pairs(t) do
+				if k ~= exclude_key then
+					table.insert(children, v)
+					if type(v) == "table" then
+						table.insert(newCheck, v)
+					end
+				end
+			end
+		end
+		check = newCheck
+	end
+
+	return children
+end
+
+function Bindings:dirtyVariable(ref)
+	local root = reference.Reference.get_root(ref)
+	local keys = reference.Reference.get_keys(ref)
+	local refDependentBindings = self.dependencies[root]
+	if refDependentBindings ~= nil then
+		for i = 1, #keys do
+			local key = keys[i]
+			if refDependentBindings[key] ~= nil then
+				refDependentBindings = refDependentBindings[key]
+			else
+				refDependentBindings = nil
+				break
+			end
+		end
+	end
+
+	if refDependentBindings ~= nil then
+		-- Find dirtied bindings
+		local dirtiedBindings = {}
+		local refs = get_children(refDependentBindings, __BINDINGS)
+		table.insert(refs, refDependentBindings)
+		for _, ref in pairs(refs) do
+			for _, binding in pairs(ref[__BINDINGS]) do
+				table.insert(dirtiedBindings, binding)
+			end
+		end
+
+		-- Add to Bindings.dirty structure
+		for i = 1, #dirtiedBindings do
+			local binding = dirtiedBindings[i]
+			if binding ~= self.ignoreDirtyBinding then
+				local lineage = {binding}
+				while lineage[#lineage].container do
+					table.insert(lineage, lineage[#lineage].container)
+				end
+
+				local d = self.dirty
+				for i = #lineage, 2, -1 do
+					d[lineage[i]] = d[lineage[i]] or {}
+					d = d[lineage[i]]
+				end
+				d[binding] = true
+			end
+		end
+	end
+end
+
+local function Bindings_addDependency(ref)
+	local self = bindings.currentBindings
+	if not self or not bindings.currentBinding then
+		return
+	end
+
+	local root = reference.Reference.get_root(ref)
+	local keys = reference.Reference.get_keys(ref)
+	local refDependentBindings = self.dependencies[root]
+	if refDependentBindings == nil then
+		self.dependencies[root] = {}
+		refDependentBindings = self.dependencies[root]
+		refDependentBindings[__BINDINGS] = {}
+	end
+	for i = 1, #keys do
+		local key = keys[i]
+		if refDependentBindings[key] == nil then
+			refDependentBindings[key] = {}
+			refDependentBindings[key][__BINDINGS] = {}
+		end
+		refDependentBindings = refDependentBindings[key]
+	end
+	set.insert(refDependentBindings[__BINDINGS], bindings.currentBinding)
+
+	set.insert(bindings.currentBinding.variables, ref)
+end
+
+
 local function make_bindings(element, env)
 	return Bindings:new(element, env)
 end
@@ -228,6 +352,13 @@ end
 bindings.error_handler = error_handler
 bindings.elementBindingPriorities = elementBindingPriorities
 bindings.callbacks = module
+
+reference.add_dirty_listener(function(ref)
+	for i = 1, #allBindings do
+		allBindings[i]:dirtyVariable(ref)
+	end
+end)
+reference.add_access_listener(Bindings_addDependency)
 
 module.make_bindings = make_bindings
 module.make_lens = lenses.make_lens
