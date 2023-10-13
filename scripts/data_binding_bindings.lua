@@ -20,8 +20,16 @@ local function split(s, d)
 	return result
 end
 
-local function make_binding(env, source)
-	local command, error = load("return " .. source, nil, "t", env)
+local function make_binding(env, source, args)
+	local fullSource = {}
+	if args and #args > 0 then
+		table.insert(fullSource, "local ")
+		table.insert(fullSource, table.concat(args, ", "))
+		table.insert(fullSource, " = ...; ")
+	end
+	table.insert(fullSource, "return ")
+	table.insert(fullSource, source)
+	local command, error = load(table.concat(fullSource), nil, "t", env)
 	if command == nil then
 		command, error = load(source, nil, "t", env)
 	end
@@ -215,12 +223,16 @@ function Binding:getValue()
 	self:clearVariables()
 	module.currentBinding = self
 	local _, value = xpcall(self.binding, module.error_handler)
+	local r1, r2
 	if reference.Reference.is(value) then
-		return #value, value
+		r1 = #value
+		r2 = value
 	else
-		return value
+		r1 = value
 	end
 	module.currentBinding = nil
+
+	return r1, r2
 end
 function Binding:update() end
 function Binding:singleUpdate()
@@ -312,6 +324,7 @@ end
 
 
 local AbstractEventBinding = {}
+local eventArgs = {"event", "element", "document"}
 function AbstractEventBinding:new(env, element, event)
 	local o = {}
 	setmetatable(o, self)
@@ -319,7 +332,7 @@ function AbstractEventBinding:new(env, element, event)
 	o.element = element
 	o.event = event
 	o.source = element:GetAttribute("bind-event-"..event)
-	o.binding = make_binding(env, o.source)
+	o.binding = make_binding(env, o.source, eventArgs)
 	return o
 end
 
