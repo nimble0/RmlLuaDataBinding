@@ -25,6 +25,8 @@ local elementBindingPriorities = {
 local __BINDINGS = {}
 
 local error_handler = print
+local onCreateElementListeners = {}
+local onDestroyElementListeners = {}
 
 
 local function update_dirty_bindings(bindings)
@@ -233,8 +235,8 @@ function Bindings:bind(
 				end
 			end
 			self.direct[elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
-			if module.onCreateElement then
-				xpcall(module.onCreateElement, error_handler, element)
+			for i = 1, #onCreateElementListeners do
+				xpcall(onCreateElementListeners[i], error_handler, element)
 			end
 		end
 	end
@@ -349,7 +351,10 @@ end
 
 bindings.error_handler = error_handler
 bindings.elementBindingPriorities = elementBindingPriorities
-bindings.callbacks = module
+bindings.callbacks = {
+	onCreateElement = onCreateElementListeners,
+	onDestroyElement = onDestroyElementListeners
+}
 
 reference.add_dirty_listener(function(ref)
 	for i = 1, #allBindings do
@@ -364,8 +369,10 @@ module.make_number_lens = lenses.make_number_lens
 module.make_float_lens = lenses.make_float_lens
 module.make_boolean_lens = lenses.make_boolean_lens
 module.make_enum_lens = lenses.make_enum_lens
-module.onCreateElement = nil
-module.onDestroyElement = nil
+module.add_on_create_element_listener = function(l) set.insert(onCreateElementListeners, l) end
+module.remove_on_create_element_listener = function(l) set.remove(onCreateElementListeners, l) end
+module.add_on_destroy_element_listener = function(l) set.insert(onDestroyElementListeners, l) end
+module.remove_on_destroy_element_listener = function(l) set.remove(onDestroyElementListeners, l) end
 
 module.make_variable_dirtyable = reference.make_variable_dirtyable
 module.make_container_dirtyable = reference.make_container_dirtyable
