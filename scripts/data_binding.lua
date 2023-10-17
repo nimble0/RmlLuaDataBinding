@@ -24,9 +24,7 @@ local elementBindingPriorities = {
 -- Unique keys to prevent conflicting with other keys in index metamethod
 local __BINDINGS = {}
 
-local function error_handler(m)
-	print(m)
-end
+local error_handler = print
 
 
 local function update_dirty_bindings(bindings)
