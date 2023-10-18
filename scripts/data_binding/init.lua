@@ -1,6 +1,6 @@
-local bindings = require("data_binding_bindings")
-local reference = require("data_binding_reference")
-local lenses = require("data_binding_lenses")
+local bindings = require("data_binding.bindings")
+local lenses = require("data_binding.lenses")
+local reference = require("reference")
 local set = require("set")
 
 

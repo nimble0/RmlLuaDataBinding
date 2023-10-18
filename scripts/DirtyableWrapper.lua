@@ -1,5 +1,5 @@
 local data_binding = require("data_binding")
-local reference = require("data_binding_reference")
+local reference = require("reference")
 
 
 local dirtyableWrappers = {}

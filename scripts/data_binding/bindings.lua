@@ -1,6 +1,6 @@
 local module = {}
 
-local reference = require("data_binding_reference")
+local reference = require("reference")
 
 
 local function trim(s)
