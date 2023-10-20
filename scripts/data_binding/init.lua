@@ -6,10 +6,11 @@ local set = require("set")
 
 local module = {}
 
+local WeakTable = { __mode = "kv" }
 local WeakValueTable = { __mode = "v" }
 
-local allBindings = {}
-setmetatable(allBindings, WeakValueTable)
+module.allBindings = {}
+setmetatable(module.allBindings, WeakValueTable)
 local bindingId = 0
 
 -- Lower priority values are updated first
@@ -50,6 +51,10 @@ function Bindings:new(element, env)
 		o.direct[priority] = {}
 	end
 	o.indirect = {}
+	-- All real (not abstract) bindings
+	-- Use tostring(element) as key because the same element can be bound as
+	-- different Lua objects.
+	o.real = {}
 	o.dirty = nil
 	o.deferredSetBindings = {}
 	-- Workaround because we can't store a binding reference directly in a element
@@ -80,7 +85,7 @@ function Bindings:new(element, env)
 	o.env = env
 	setmetatable(o.elementSubmitBindings, WeakValueTable)
 
-	table.insert(allBindings, o)
+	table.insert(module.allBindings, o)
 
 	bindings.currentBindings = o
 	o:bind(element)
@@ -90,13 +95,83 @@ function Bindings:new(element, env)
 end
 
 function Bindings:delete()
-	set.remove(allBindings, self)
+	set.remove(module.allBindings, self)
 	self.direct = {}
 	self.indirect = {}
+	self.real = {}
 	self.dirty = {}
 	self.deferredSetBindings = {}
 	self.elementSubmitBindings = {}
 	self.dependencies = {}
+end
+
+function Bindings:registerBinding(element, binding)
+	if not binding then
+		return
+	end
+
+	local k = tostring(element)
+	local elementBindings = self.real[k] or {}
+	self.real[k] = elementBindings
+	elementBindings[binding.id] = binding
+end
+
+function Bindings:unregisterBindings(element)
+	self.real[tostring(element)] = {}
+end
+
+function Bindings:_dirtyBinding(binding)
+	if not binding then
+		return
+	end
+
+	if binding ~= self.ignoreDirtyBinding then
+		local lineage = {binding}
+		while lineage[#lineage].container do
+			table.insert(lineage, lineage[#lineage].container)
+		end
+
+		local d = self.dirty
+		for i = #lineage, 2, -1 do
+			d[lineage[i]] = d[lineage[i]] or {}
+			d = d[lineage[i]]
+		end
+		d[binding] = true
+	end
+end
+function Bindings:dirtyBinding(element, bindingId)
+	local elementBindings = self.real[tostring(element)]
+	if not elementBindings then
+		return
+	end
+
+	if bindingId then
+		self:_dirtyBinding(elementBindings[bindingId])
+	else
+		for id, binding in pairs(elementBindings) do
+			self:_dirtyBinding(binding)
+		end
+	end
+end
+function Bindings:_dirtySetBinding(binding)
+	if not binding or not binding.setBinding then
+		return
+	end
+	self.deferredSetBindings[binding] = true
+end
+function Bindings:dirtySetBinding(element, bindingId)
+	local elementBindings = self.real[tostring(element)]
+	if not elementBindings then
+		return
+	end
+
+	if bindingId then
+		self:_dirtySetBinding(elementBindings[bindingId])
+	else
+		for id, binding in pairs(elementBindings) do
+			self:_dirtySetBinding(binding)
+		end
+	end
 end
 
 function Bindings:update()
@@ -138,10 +213,11 @@ end
 
 function Bindings:setDeferredBindings()
 	bindings.currentBindings = self
-	for binding, value in pairs(self.deferredSetBindings) do
+	for binding in pairs(self.deferredSetBindings) do
 		self.ignoreDirtyBinding = binding
-		binding.setBinding(value)
+		binding.setBinding(binding.value)
 		self.ignoreDirtyBinding = nil
+		binding.value = nil
 	end
 	bindings.currentBindings = nil
 	self.deferredSetBindings = {}
@@ -159,7 +235,9 @@ function Bindings:bind(
 		local abstractBinding = bindings.AbstractForBinding:new(self.env, element, self.indirect)
 
 		if not useBindingId then
-			self.direct[elementBindingPriorities[element.tag_name] or 1][element] = {abstractBinding:apply(element)}
+			local elementBinding = abstractBinding:apply(element)
+			self.direct[elementBindingPriorities[element.tag_name] or 1][element] = {elementBinding}
+			self:registerBinding(element, elementBinding)
 		else
 			local id = bindingId
 			bindingId = bindingId + 1
@@ -233,6 +311,7 @@ function Bindings:bind(
 				if elementBinding then
 					table.insert(elementBindings, elementBinding)
 				end
+				self:registerBinding(element, elementBinding)
 			end
 			self.direct[elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
 			for i = 1, #onCreateElementListeners do
@@ -357,8 +436,8 @@ bindings.callbacks = {
 }
 
 reference.add_dirty_listener(function(ref)
-	for i = 1, #allBindings do
-		allBindings[i]:dirtyVariable(ref)
+	for i = 1, #module.allBindings do
+		module.allBindings[i]:dirtyVariable(ref)
 	end
 end)
 reference.add_access_listener(Bindings_addDependency)

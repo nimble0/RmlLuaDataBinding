@@ -63,7 +63,8 @@ local function bind_value_set(element, binding)
 	element:AddEventListener("change",
 		function(event)
 			if not currentBindings.updating then
-				currentBindings.deferredSetBindings[binding] = event.parameters.value
+				binding.value = event.parameters.value
+				currentBindings:_dirtySetBinding(binding)
 			end
 		end,
 		true)
@@ -81,22 +82,22 @@ local function bind_submit_form(element, binding)
 			for _, binding in pairs(binding.submitBindings) do
 				local element = Element.As.ElementFormControl(binding.element)
 				if element:HasAttribute("bind-submit-dirty") then
-					currentBindings.deferredSetBindings[binding] = binding.value
+					currentBindings:_dirtySetBinding(binding)
 				end
 			end
 		end)
 end
 
-local function bind_submit_value_set(element, bindValue)
+local function bind_submit_value_set(element, binding)
 	local currentBindings = module.currentBindings
 	element:AddEventListener("change",
 		function(event)
 			if not currentBindings.updating then
 				element:SetAttribute("bind-submit-dirty", "")
-				bindValue.value = event.parameters.value
+				binding.value = event.parameters.value
 				local oldCurrentBindings = module.currentBindings
 				module.currentBindings = currentBindings
-				bindValue:clearVariables()
+				binding:clearVariables()
 				module.currentBindings = oldCurrentBindings
 			end
 		end,
@@ -114,7 +115,7 @@ local function bind_submit_value_set(element, bindValue)
 		return
 	end
 	local submitBinding = currentBindings.elementSubmitBindings[bindSubmitId]
-	table.insert(submitBinding.submitBindings, bindValue)
+	table.insert(submitBinding.submitBindings, binding)
 end
 
 local function bind_for_sub_element(
@@ -134,6 +135,7 @@ local function bind_for_sub_element(
 			elementBinding.parentIndex = parentIndex
 			table.insert(elementBindings, elementBinding)
 		end
+		module.currentBindings:registerBinding(element, elementBinding)
 	end
 
 	if #elementBindings > 0 then
@@ -170,6 +172,7 @@ local function bind_for_child(
 			elementBinding.parentIndex = parentIndex
 			table.insert(elementBindings, elementBinding)
 		end
+		module.currentBindings:registerBinding(element, elementBinding)
 	end
 
 	forElement.bindings = {}
@@ -254,6 +257,7 @@ end
 
 
 local ContentBinding = Binding:new()
+ContentBinding.id = "bind"
 function ContentBinding:update()
 	local value = self:getValue()
 	self.element.inner_rml = tostring(value)
@@ -279,6 +283,7 @@ end
 
 
 local ClassBinding = Binding:new()
+ClassBinding.id = "bind-class"
 function ClassBinding:update()
 	local value = self:getValue()
 	self.element.class_name = self.fixedClass .. " " .. tostring(value)
@@ -313,13 +318,21 @@ function AbstractAttributeBinding:new(env, element, attribute)
 	self.__index = self
 	o.element = element
 	o.attribute = attribute
-	o.source = element:GetAttribute("bind-attribute-"..attribute)
+	o.id = "bind-attribute-" .. attribute
+	o.source = element:GetAttribute(o.id)
 	o.binding = make_binding(env, o.source)
 	return o
 end
 
 function AbstractAttributeBinding:apply(element)
-	return AttributeBinding:new{element = element, binding = self.binding, attribute = self.attribute, source = self.source}
+	return AttributeBinding:new
+	{
+		id = self.id,
+		element = element,
+		binding = self.binding,
+		attribute = self.attribute,
+		source = self.source
+	}
 end
 
 
@@ -341,6 +354,7 @@ function AbstractEventBinding:apply(element)
 end
 
 local ValueBinding = Binding:new()
+ValueBinding.id = "bind-value"
 function ValueBinding:update()
 	local value = self:getValue()
 	Element.As.ElementFormControl(self.element).value = tostring(value)
@@ -366,6 +380,7 @@ end
 
 
 local CheckedBinding = Binding:new()
+CheckedBinding.id = "bind-checked"
 function CheckedBinding:update()
 	local value = self:getValue()
 	Element.As.ElementFormControlInput(self.element).checked = (value == self.element:GetAttribute("value"))
@@ -391,6 +406,7 @@ end
 
 
 local SubmitValueBinding = Binding:new()
+SubmitValueBinding.id = "bind-submit-value"
 function SubmitValueBinding:update()
 	if not self.element:HasAttribute("bind-submit-dirty") then
 		local value = self:getValue()
@@ -418,6 +434,7 @@ end
 
 
 local SubmitCheckedBinding = Binding:new()
+SubmitCheckedBinding.id = "bind-submit-checked"
 function SubmitCheckedBinding:update()
 	if not self.element:HasAttribute("bind-submit-dirty") then
 		local value = self:getValue()
@@ -445,6 +462,7 @@ end
 
 
 local SubmitBinding = Binding:new()
+SubmitBinding.id = "bind-submit"
 
 local AbstractSubmitBinding = {}
 function AbstractSubmitBinding:new(env, element)
@@ -463,6 +481,7 @@ end
 
 
 local ForBinding = Binding:new()
+ForBinding.id = "bind-for"
 function ForBinding:update()
 	local values, containerReference = self:getValue()
 	self.values = values or {}
@@ -501,6 +520,7 @@ function ForBinding:update()
 		for i = 1, #module.callbacks.onDestroyElement do
 			xpcall(module.callbacks.onDestroyElement[i], module.error_handler, elements[#elements].element)
 		end
+		module.currentBindings:unregisterBindings(element)
 		self.element.parent_node:RemoveChild(elements[#elements].element)
 		table.remove(elements, #elements)
 	end
