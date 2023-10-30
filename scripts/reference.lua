@@ -129,6 +129,38 @@ function ReferenceMt:__len()
 	return ReferenceMt.dereference(self)
 end
 
+function ReferenceMt:__call(...)
+	local f = ReferenceMt.dereference(self)
+	local first = select(1, ...)
+	-- Check if method call
+	if Reference.is(first) then
+		local keys = self[__KEYS]
+		local parentKeys = {}
+		for i = 1, #keys - 1 do
+			table.insert(parentKeys, keys[i])
+		end
+		local parent = Reference:new(self[__ROOT], parentKeys)
+
+		if first == parent then
+			-- Replace reference self with dereferenced self
+			-- Dereference parent manually to avoid extra triggering access listeners
+			-- for both method and parent
+			local container = self[__ROOT]
+			local keys = self[__KEYS]
+			for i = 1, #keys - 1 do
+				local key = keys[i]
+				container = container[key]
+				if container == nil then
+					break
+				end
+			end
+			return f(container, select(2, ...))
+		end
+	end
+
+	return f(...)
+end
+
 function Reference.is(ref)
 	return getmetatable(ref) == ReferenceMt
 end
