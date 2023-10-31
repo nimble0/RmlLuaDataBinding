@@ -218,6 +218,8 @@ function Bindings:setDeferredBindings()
 		binding.setBinding(binding.value)
 		self.ignoreDirtyBinding = nil
 		binding.value = nil
+		local element = Element.As.ElementFormControl(binding.element)
+		element:RemoveAttribute("bind-submit-dirty")
 	end
 	bindings.currentBindings = nil
 	self.deferredSetBindings = {}
