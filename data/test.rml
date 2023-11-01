@@ -61,6 +61,7 @@
 		imageSrc = "icons/shield-icon.png"
 		name = "pineapple"
 		sensitivity = 5.0
+		state = "on"
 
 		testDocument = nil
 		lastClickEvent = ""
@@ -171,20 +172,25 @@
 
 			local preName = name
 			local preSensitivity = sensitivity
+			local preState = state
 			local textInputElement2 = Element.As.ElementFormControlInput(document:GetElementById("text-input-2"))
 			local selectInputElement2 = Element.As.ElementFormControlSelect(document:GetElementById("select-input-2"))
+			local checkboxInputElement2 = Element.As.ElementFormControlInput(document:GetElementById("checkbox-input-2"))
 			test.assertEquals(textInputElement2.value, name, "bind-submit-value text value")
 			test.assertEquals(selectInputElement2.value, tostring(sensitivity), "bind-submit-value select value")
 			textInputElement2.value = "beans"
 			textInputElement2:DispatchEvent("change", {value = "beans"})
 			selectInputElement2.selection = 5
+			checkboxInputElement2.checked = false
 			bindings:updateDirty()
 			test.assertEquals(name, preName, "bind-submit-value text before submit")
 			test.assertEquals(sensitivity, preSensitivity, "bind-submit-value select before submit")
+			test.assertEquals(state, preState, "bind-submit-checked before submit")
 			Element.As.ElementForm(document:GetElementById("submit-form")):Submit()
 			bindings:setDeferredBindings()
 			test.assertEquals(name, "beans", "bind-submit-value text after submit")
 			test.assertEquals(sensitivity, 5, "bind-submit-value select after submit")
+			test.assertEquals(state, "", "bind-submit-checked after submit")
 		end
 	</script>
 </head>
@@ -235,6 +241,7 @@
 			<option value="5">5</option>
 			<option value="6">6</option>
 		</select>
+		<input id="checkbox-input-2" type="checkbox" value="on" bind-submit-checked="data_binding.make_lens(R.state)" /> Pasta
 		<input id="text-input-2" bind-submit-value="data_binding.make_lens(R.name)" type="text" />
 		<input id="submit-input" type="submit">apply</input>
 	</form>

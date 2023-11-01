@@ -81,8 +81,7 @@ local function bind_submit_form(element, binding)
 			for _, binding in pairs(binding.submitBindings) do
 				local element = Element.As.ElementFormControl(binding.element)
 				if element:HasAttribute("bind-submit-dirty") then
-					local value = element.value
-					currentBindings.deferredSetBindings[binding] = value
+					currentBindings.deferredSetBindings[binding] = binding.value
 				end
 			end
 		end)
@@ -94,6 +93,7 @@ local function bind_submit_value_set(element, bindValue)
 		function(event)
 			if not currentBindings.updating then
 				element:SetAttribute("bind-submit-dirty", "")
+				bindValue.value = event.parameters.value
 				local oldCurrentBindings = module.currentBindings
 				module.currentBindings = currentBindings
 				bindValue:clearVariables()
