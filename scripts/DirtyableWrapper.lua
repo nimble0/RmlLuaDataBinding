@@ -10,6 +10,25 @@ setmetatable(dirtyableWrappers, WeakKeyTable)
 local __REF = {}
 local __BASE = {}
 
+local FunctionWrapper = {}
+function FunctionWrapper:new(self, realSelf, f)
+	local o = {}
+	o.self = self
+	o.realSelf = realSelf
+	o.f = f
+	setmetatable(o, self)
+	return o
+end
+function FunctionWrapper:__call(...)
+	local first = select(1, ...)
+	-- Check if method call
+	if first == self.self then
+		return f(self.realSelf, select(2, ...))
+	end
+
+	return f(...)
+end
+
 local DirtyableWrapper = {}
 function DirtyableWrapper:new(ref, base)
 	assert(reference.Reference.is(ref) and base ~= nil)
@@ -65,7 +84,10 @@ end
 function DirtyableWrapper:__index(k)
 	local v = self[__BASE][k]
 	local vType = type(v)
-	if vType == "table" or vType == "userdata" then
+	local mt = getmetatable(v) or {}
+	if vType == "function" or mt.__call then
+		return FunctionWrapper:new(self, self[__BASE], v)
+	elseif (vType == "table" or vType == "userdata") and not mt.__noDirtyableWrapper then
 		return DirtyableWrapper:new(self[__REF][k], v)
 	else
 		return v
