@@ -12,6 +12,8 @@ local __BASE = {}
 
 local DirtyableWrapper = {}
 function DirtyableWrapper:new(ref, base)
+	assert(reference.Reference.is(ref) and base ~= nil)
+
 	local existing = dirtyableWrappers[ref]
 	if existing then
 		existing[__BASE] = base
