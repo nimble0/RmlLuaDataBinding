@@ -98,4 +98,8 @@ function DirtyableWrapper:__newindex(k, v)
 	reference.dirty_variable(self[__REF][k])
 end
 
+function DirtyableWrapper:__tostring()
+	return table.concat({"DirtyableWrapper(", tostring(self[__BASE]), ")"})
+end
+
 return DirtyableWrapper
