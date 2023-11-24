@@ -26,7 +26,13 @@ end
 
 local function make_float_lens(ref, format)
 	return
-		function() return string.format(format, #ref) end,
+		function()
+			local v = #ref
+			if v then
+				return string.format(format, #ref)
+			end
+			return nil
+		end,
 		function(v)
 			local v2 = tonumber(v)
 			if v2 then
