@@ -30,6 +30,9 @@ function FunctionWrapper:__call(...)
 end
 
 local DirtyableWrapper = {}
+function DirtyableWrapper:make(ref, base)
+	reference.set_variable(ref, DirtyableWrapper:new(ref, base))
+end
 function DirtyableWrapper:new(ref, base)
 	assert(reference.Reference.is(ref) and base ~= nil)
 
