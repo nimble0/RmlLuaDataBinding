@@ -526,17 +526,17 @@ function ForBinding:update()
 	end
 
 	local index_ = self.env[indexKey]
-	local rIndex_ = self.env.R[indexKey]
+	local rIndex_ = rawget(self.env.R, indexKey)
 	local it_ = self.env[valueKey]
-	local rIt_ = self.env.R[valueKey]
+	local rIt_ = rawget(self.env.R, valueKey)
 	for i = 1, valuesLength do
 		local v = self.values[i]
 		local forElementBindings = elements[i]
 
 		self.env[indexKey] = i
-		self.env.R[indexKey] = nil
+		rawset(self.env.R, indexKey, nil)
 		self.env[valueKey] = v
-		self.env.R[valueKey] = containerReference[i]
+		rawset(self.env.R, valueKey, containerReference[i])
 
 		for _, bindingsGroup in pairs(forElementBindings.bindings) do
 			for element, bindings in pairs(bindingsGroup) do
@@ -547,9 +547,9 @@ function ForBinding:update()
 		end
 	end
 	self.env[indexKey] = index_
-	self.env.R[indexKey] = rIndex_
+	rawset(self.env.R, indexKey, rIndex_)
 	self.env[valueKey] = it_
-	self.env.R[valueKey] = rIt_
+	rawget(self.env.R, valueKey, rIt_)
 end
 
 function ForBinding:updateChainDown(chain)

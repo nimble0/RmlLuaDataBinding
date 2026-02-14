@@ -184,12 +184,16 @@ local HalfReference = {}
 function HalfReference:new(container)
 	local o = {}
 	setmetatable(o, HalfReferenceMt)
-	o[__ROOT] = container
+	rawset(o, __ROOT, container)
 	return o
 end
 
 function HalfReferenceMt:__index(k)
-	return Reference:new(self[__ROOT], {k})
+	return Reference:new(rawget(self, __ROOT), {k})
+end
+
+function HalfReferenceMt:__newindex(k, v)
+	set_variable(self[k], v)
 end
 
 function HalfReferenceMt:dereference() end
