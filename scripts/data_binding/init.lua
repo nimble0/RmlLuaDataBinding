@@ -175,6 +175,7 @@ function Bindings:dirtySetBinding(element, bindingId)
 end
 
 function Bindings:update()
+	self:setDeferredBindings()
 	if self.dirty then
 		self:updateDirty()
 	else
