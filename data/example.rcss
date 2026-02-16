@@ -1,0 +1,143 @@
+.bind-for-base
+{
+	display: none;
+}
+
+body
+{
+	font-family: LatoLatin;
+	font-weight: normal;
+	font-style: normal;
+	font-size: 15dp;
+	background-color: #bbb;
+	color: #333;
+	nav: auto;
+	box-sizing: border-box;
+	padding: 1em;
+}
+
+div, p, h1, h2, h3, li, codeblock
+{
+	display: block;
+}
+
+h1
+{
+	margin: 1em 0 0.5em 0;
+	font-size: 2em;
+}
+
+h2
+{
+	margin: 1em 0 0.5em 0;
+	font-size: 1.4em;
+}
+
+h3
+{
+	margin: 1em 0 0.5em 0;
+	font-size: 1.2em;
+}
+
+code, codeblock
+{
+	background-color: #333;
+	color: #aaa;
+	border: 1dp #999;
+}
+
+code
+{
+	padding: 3dp 5dp;
+}
+
+codeblock
+{
+	white-space: pre;
+	padding: 5dp;
+}
+
+p, codeblock
+{
+	margin: 0.8em 0;
+	line-height: 1.6em;
+}
+
+button, tab, input[type="submit"]
+{
+	display: inline-block;
+	background-color: #888;
+	color: #111;
+	border: 1dp #aaa;
+	padding: 10dp;
+	margin-right: 5dp;
+}
+
+input[type="submit"]
+{
+	margin: 0.8em 0;
+}
+
+input[type="text"]
+{
+	display: block;
+	width: 50em;
+	background-color: #ccc;
+	border: 1dp #555;
+	padding: 10dp;
+}
+
+::placeholder
+{
+	color: #999;
+}
+
+body, tabset, panel
+{
+	width: 100%;
+}
+
+tab
+{
+	border-bottom: 0;
+}
+
+tabs
+{
+	border-bottom: 2dp #888;
+	padding: 10dp;
+}
+
+hr
+{
+	display: block;
+	margin-top: 0.5em;
+	margin-bottom: 0.5em;
+	margin-left: auto;
+	margin-right: auto;
+	border: 2dp #999;
+	padding: 1dp;
+	background-color: #333;
+}
+
+li
+{
+	margin-left: 1em;
+	padding: 0.3em 0;
+}
+
+.bold
+{
+	font-weight: bold;
+}
+
+.italic
+{
+	font-style: italic;
+}
+
+.underlined
+{
+	text-decoration: underline;
+}
+

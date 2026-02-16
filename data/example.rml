@@ -1,0 +1,170 @@
+<rml>
+<head>
+	<title>Example</title>
+	<link type="text/rcss" href="example.rcss" />
+	<script>
+		data_binding = require("data_binding")
+		R = data_binding.R(_ENV)
+
+		myVar = "hello"
+		myTextStyle = "bold"
+		makeItalic = true
+		myColours = { "red", "green", "blue" }
+		numClicks = 0
+		myHexNumber = "9AEB78"
+
+		function execute(document)
+			local inputElement = document:GetElementById('lua-input')
+			load(inputElement.attributes.value)()
+			inputElement:SetAttribute("value", "")
+		end
+
+		function update()
+			bindings:update()
+		end
+
+		data_binding.add_on_add_element_listener(require("limit_input"))
+		data_binding.add_on_add_element_listener(require("submit_on_blur"))
+	</script>
+</head>
+<body onload="bindings = data_binding.make_bindings(document, _ENV)">
+	<input
+		id="lua-input"
+		type="text"
+		placeholder="type Lua code here..."
+		onkeydown="if event.parameters.key_identifier == rmlui.key_identifier.RETURN then execute(document) end" />
+	<p>
+		<button onclick="execute(document)">Execute Lua</button>
+		<button onclick="update()">Update bindings (if bindings are not being updated automatically)</button>
+	</p>
+	<hr />
+	<tabset>
+		<tab>Setup</tab>
+		<panel>
+			<p>Bindings must be initialised with <code>bindings = data_binding.make_bindings(document, _ENV)</code></p>
+			<p>Bindings are updated with <code>bindings:update()</code>. This should be called every frame.</p>
+
+			<h3>References</h3>
+			<p>Linking bindings to variables is done through references. Create a reference root with <code>R = data_binding.R(_ENV)</code>. References are then created by simply indexing from the root reference: <code>R.myVar</code>. References with multiple indices are possible: <code>R.myColours[1]</code>.</p>
+			<p>References are automatically marked as dirty when assigned: <code>R.myVar = "newValue"</code> but can be manually marked as dirty with <code>data_binding.dirty_variable(R.myVar)</code>.</p>
+			<p>The <code>#</code> operator dereferences references: <code>#R.myVar == "newValue"</code></p>
+		</panel>
+
+		<tab>Content binding</tab>
+		<panel>
+			<p>Bind the text/RML content of an element with the bind attribute.</p>
+			<codeblock>&lt;div bind="R.myVar" /&gt;</codeblock>
+			<p>
+				<div bind="R.myVar" />
+			</p>
+
+			<p>Lua expressions can also be used in bindings. Dereferencing is not necessary when binding a single variable but it is necessary when used in expressions.</p>
+			<codeblock>&lt;div bind="'myVar = ' .. #R.myVar" /&gt;</codeblock>
+			<p>
+				<div bind="'myVar = ' .. #R.myVar" />
+			</p>
+		</panel>
+
+		<tab>Attribute binding</tab>
+		<panel>
+			<p>Classes can be bound with <code>bind-class</code>. Other attributes can be bound with <code>bind-attribute-[attribute]</code>. Custom attributes must be specified before binding by adding to <code>data_binding.attributeTypes</code>.</p>
+			<codeblock>&lt;div bind-class="R.myTextStyle"&gt;some text&lt;/div&gt;</codeblock>
+			<p>
+				<div bind-class="R.myTextStyle">some styled text</div>
+			</p>
+			<p>Pairs of class names and booleans can also be provided to <code>bind-class</code>.</p>
+			<codeblock>&lt;div bind-class&#x3D;&quot;&#39;bold&#39;, R.makeBold, &#39;italic&#39;, R.makeItalic&quot;&gt;some styled text&lt;&#x2F;div&gt;</codeblock>
+			<p>
+				<div bind-class="'bold', R.makeBold, 'italic', R.makeItalic">some styled text</div>
+			</p>
+		</panel>
+
+		<tab>Event binding</tab>
+		<panel>
+			<p>Events can be bound with <code>bind-event-[event]</code>. Custom events must be specified before binding by adding to <code>data_binding.eventTypes</code>.</p>
+			<codeblock>&lt;button bind-event-click="R.numClicks = #R.numClicks + 1" bind="#R.numClicks .. ' clicks'" /&gt;</codeblock>
+			<p>
+				<button bind-event-click="R.numClicks = #R.numClicks + 1" bind="#R.numClicks .. ' clicks'" />
+			</p>
+		</panel>
+
+		<tab>For loop binding</tab>
+		<panel>
+			<p>
+				For loop binding is done with <code>bind-for="[value] in [list]"</code> or <code>bind-for="[index], [value] in [list]"</code>.
+				The RCSS rule <code>.bind-for-base { display: none; }</code> should be included to hide elements which are used as templates to generate the other elements.
+			</p>
+			<p>
+				Maps cannot be bound because their order can change. For loop bindings can be nested.
+			</p>
+			<codeblock>&lt;ul&gt;
+	&lt;li bind-for="colour in R.myColours" bind="R.colour" /&gt;
+&lt;/ul&gt;</codeblock>
+			<p>
+				<ul>
+					<li bind-for="colour in R.myColours" bind="R.colour" />
+				</ul>
+			</p>
+		</panel>
+
+		<tab>Two-way binding</tab>
+		<panel>
+			<p>Input elements can be bound to both reflect variables and update variables with <code>bind-value</code> and <code>bind-checked</code>. These require binding to "lenses"; pairs of functions that determine how to get and set the value.</p>
+			<codeblock>&lt;input id="text-input" bind-value="data_binding.make_lens(R.myVar)" type="text" /&gt;</codeblock>
+			<p>
+				<input bind-value="data_binding.make_lens(R.myVar)" type="text" />
+			</p>
+
+			<p>The data_binding module provides these lenses:</p>
+			<ul>
+				<li><code>data_binding.make_lens</code></li>
+				<li><code>data_binding.make_number_lens</code></li>
+				<li><code>data_binding.make_float_lens</code></li>
+				<li><code>data_binding.make_boolean_lens</code></li>
+				<li><code>data_binding.make_enum_lens</code></li>
+			</ul>
+
+			<p>Input elements can also be bound so that they only update variables after a submit event occurs by instead binding with <code>bind-submit-value</code> or <code>bind-submit-checked</code>. These element must be within a form with the <code>bind-submit</code> attribute</p>
+			<codeblock>&lt;form bind-submit&gt;
+	&lt;input bind-submit-value&#x3D;&quot;data_binding.make_lens(R.myVar)&quot; type&#x3D;&quot;text&quot; &#x2F;&gt;
+	&lt;input type&#x3D;&quot;submit&quot; value&#x3D;&quot;Apply&quot; &#x2F;&gt;
+&lt;&#x2F;form&gt;</codeblock>
+			<p>
+				<form bind-submit>
+					<input bind-submit-value="data_binding.make_lens(R.myVar)" type="text" />
+					<input type="submit" value="Apply" />
+				</form>
+			</p>
+		</panel>
+
+		<tab>Listeners</tab>
+		<panel>
+			<p>Listeners can be used to respond to element additions/removals by data binding. These are not called for every element, only the root element of the tree that is added/removed.</p>
+			<ul>
+				<li><code>data_binding.add_on_add_element_listener</code></li>
+				<li><code>data_binding.remove_on_add_element_listener</code></li>
+				<li><code>data_binding.add_on_remove_element_listener</code></li>
+				<li><code>data_binding.remove_on_remove_element_listener</code></li>
+			</ul>
+
+			<p><code>limit_input</code> and <code>submit_on_blur</code> are optional listeners that provide additional functionality.</p>
+			<codeblock>data_binding.add_on_add_element_listener(require("limit_input"))
+data_binding.add_on_add_element_listener(require("submit_on_blur"))
+
+...
+
+&lt;div bind&#x3D;&quot;R.myHexNumber&quot; &#x2F;&gt;
+&lt;input type&#x3D;&quot;text&quot; bind-value&#x3D;&quot;data_binding.make_lens(R.myHexNumber)&quot; limit-input&#x3D;&quot;^[a-fA-F0-9]*$&quot; &#x2F;&gt;
+&lt;div bind&#x3D;&quot;R.myVar&quot; &#x2F;&gt;
+&lt;input type&#x3D;&quot;text&quot; bind-submit-value&#x3D;&quot;data_binding.make_lens(R.myVar)&quot; submit-on-blur &#x2F;&gt;</codeblock>
+			<p>
+				<div bind="R.myHexNumber" />
+				<input type="text" bind-value="data_binding.make_lens(R.myHexNumber)" limit-input="^[a-fA-F0-9]*$" />
+				<div bind="R.myVar" />
+				<input type="text" bind-submit-value="data_binding.make_lens(R.myVar)" submit-on-blur />
+			</p>
+		</panel>
+	</tabset>
+</body>
+</rml>
+
