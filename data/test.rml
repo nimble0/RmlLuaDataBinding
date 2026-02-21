@@ -1,249 +1,242 @@
 <rml>
 <head>
 	<title>Test</title>
-	<link type="text/rcss" href="../base.rcss"/>
-	<style>
-		body { font-family: rmlui-debugger-font; }
-		.dynamic-title { color: #f0f; }
-		.a-class { width: 100%; text-align: right; font-size: 3em; }
-		outerfor h2, innerfor { display: inline-block; margin: 0.5em; }
-		for, for2, outerfor { display: block; }
-		#img { float: right; }
-		input { border: 2px #008; }
-		input:checked { background-color: #044; }
-
-		.right { float: right; }
-	</style>
+	<link type="text/rcss" href="example.rcss" />
 	<script>
-		local data_binding = require("data_binding")
-
+		local reference = require("reference")
+		data_binding = require("data_binding")
 		R = data_binding.R(_ENV)
-		if testingInterface == nil then
-			testingInterface = {}
+
+		function test_reference()
+			local R = reference.R(_ENV)
+
+			-- get
+			a = 10
+			assert(#R.a == a)
+
+			b = { 1 }
+			assert(#R.b[1] == b[1])
+
+			c = { a = -1 }
+			assert(#R.c.a == c.a)
+
+			-- set
+			R.a = 20
+			assert(a == 20)
+
+			R.b[1] = 2
+			assert(b[1] == 2)
+
+			R.c.a = -1
+			assert(c.a == -1)
+
+
+			-- access listeners
+			local accessRef = nil
+			local accessListener = function(ref)
+				assert(tostring(ref) == tostring(accessRef))
+			end
+			reference.add_access_listener(accessListener)
+
+			accessRef = R.a
+			_ = #R.a
+			accessRef = R.b[1]
+			_ = #R.b[1]
+			accessRef = R.b.a
+			_ = #R.b.a
+
+			reference.remove_access_listener(accessListener)
+
+
+			-- dirty listeners
+			local dirtyRef = nil
+			local dirtyListener = function(ref)
+				assert(tostring(ref) == tostring(dirtyRef))
+			end
+			reference.add_dirty_listener(dirtyListener)
+
+			dirtyRef = R.a
+			R.a = 5
+			dirtyRef = R.b[1]
+			R.b[1] = 5
+			dirtyRef = R.b.a
+			R.b.a = 5
+
+			-- manual dirty
+			dirtyRef = R.a
+			reference.dirty_variable(R.a)
+
+			reference.remove_dirty_listener(dirtyListener)
+
+
+			print("Reference tests passed.")
 		end
 
-		bindings = nil
+		test_reference()
 
-		title = "Dynamic test"
-		options = {
-			"play",
-			"options",
-			"quit"
-		}
-		outerList = DirtyableWrapper:new(R.outerList,
-		{
-			{
-				title = "a",
-				innerList = {
-					"gold", "silver", "orange"
-				}
-			},
-			{
-				title = "b",
-				innerList = {
-					"iron"
-				}
-			},
-			{
-				title = "c",
-				innerList = {
-					"copper", "orange"
-				}
-			},
-		})
-		test3 = {
-			"a",
-			"b",
-			"c",
-			"d",
+		document = nil
+
+		myVar = "hello"
+		myColour = "red"
+		myList = {"a", "b", "c"}
+		myNestedList = {
+			{"a", "b", "c"},
+			{"1", "2", "3"},
+			{"q", "w", "e"}
 		}
 
-		imageSrc = "icons/shield-icon.png"
-		name = "pineapple"
-		sensitivity = 5.0
-		state = "on"
 
-		testDocument = nil
-		lastClickEvent = ""
-
-		function testingInterface.make_bindings(document)
-			bindings = data_binding.make_bindings(document, _ENV)
-		end
-
-		function testingInterface.run_tests(document)
+		function make_bindings(d)
+			document = d
+			bindings = data_binding.make_bindings(d, _ENV)
 			bindings:update()
+		end
 
-			local titleElement = document:GetElementById("title")
-			test.assertEquals(titleElement.inner_rml, title, "bind")
-			test.assert(titleElement:IsClassSet("dynamic-title"), "bind-class")
-			titleElement:DispatchEvent("click", {})
-			test.assert(lastClickEvent, "test1")
-			title = "Dirty variable"
-			data_binding.dirty_variable(R.title)
-			bindings:updateDirty()
-			test.assertEquals(titleElement.inner_rml, title, "bind")
-
-			local imgElement = document:GetElementById("img")
-			test.assertEquals(imgElement:GetAttribute("src"), "icons/shield-icon.png", "bind-attribute-src")
-
-			local forElements = document:GetElementsByTagName("for")
-			table.remove(forElements, #forElements)
-			test.assertEquals(#forElements, #options, "bind-for element count")
-			for i, e in pairs(forElements) do
-				local option = options[i]
-				local indexBindElement = e.child_nodes[2]
-				local valueBindElement = e.child_nodes[3]
-				test.assertEquals(indexBindElement.inner_rml, tostring(i), "bind-for bind index")
-				test.assertEquals(valueBindElement.inner_rml, option, "bind-for bind value")
+		updateCount = 0
+		function test_data_binding()
+			if document == nil then
+				return
 			end
 
-			local outerListForElements = document:GetElementsByTagName("outerfor")
-			table.remove(outerListForElements, #outerListForElements)
-			test.assertEquals(#outerListForElements, #outerList, "nested bind-for outer element count")
-			for i, e in pairs(outerListForElements) do
-				local data = outerList[i]
-				local innerElements = {}
-				for i, child in pairs(e.child_nodes) do
-					if child.tag_name == "innerfor" then
-						table.insert(innerElements, child)
+			local bind1 = document:GetElementById("bind1")
+			local bind2 = document:GetElementById("bind2")
+			local bindFor1 = document:GetElementById("bind-for1")
+			local bindFor2 = document:GetElementById("bind-for2")
+			local bindForNested = document:GetElementById("bind-for-nested")
+			local bindValue = Element.As.ElementFormControlInput(document:GetElementById("bind-value"))
+			local bindChecked = Element.As.ElementFormControlInput(document:GetElementById("bind-checked"))
+			local bindSubmitValue = Element.As.ElementFormControlInput(document:GetElementById("bind-submit-value"))
+			local bindSubmitChecked = Element.As.ElementFormControlInput(document:GetElementById("bind-submit-checked"))
+			local submitForm = Element.As.ElementForm(document:GetElementById("submit-form"))
+
+			function set_value(element, value)
+				element:SetAttribute("value", value)
+				element:DispatchEvent("change", {value = value})
+			end
+
+			if updateCount == 1 then
+				assert(bind1.inner_rml == myVar)
+				assert(bind2.inner_rml == 'myVar = ' .. myVar)
+
+				local i = 1
+				for _, node in pairs(bindFor1.child_nodes) do
+					if not node:IsClassSet("bind-for-base") then
+						assert(node.inner_rml == myList[i])
+						i = i + 1
 					end
 				end
-				table.remove(innerElements, #innerElements)
+				i = i - 1
+				assert(i == #myList)
 
-				test.assertEquals(#innerElements, #data.innerList, "nested bind-for inner element count")
-				for i, innerElement in pairs(innerElements) do
-					test.assertEquals(innerElement.child_nodes[1].inner_rml, data.innerList[i], "nested bind-for bind inner element")
-					innerElement:DispatchEvent("click", {})
-					test.assert(lastClickEvent, innerElement.inner_rml)
+				i = 1
+				for _, node in pairs(bindFor2.child_nodes) do
+					if not node:IsClassSet("bind-for-base") then
+						assert(math.tointeger(node:GetAttribute("index")) == i)
+						assert(node.inner_rml == myList[i])
+						i = i + 1
+					end
 				end
+				i = i - 1
+				assert(i == #myList)
+
+				i = 1
+				for _, outerNode in pairs(bindForNested.child_nodes) do
+					if not outerNode:IsClassSet("bind-for-base") then
+						local j = 1
+						for _, node in pairs(outerNode.child_nodes[1].child_nodes) do
+							if not node:IsClassSet("bind-for-base") then
+								assert(node.inner_rml == myNestedList[i][j])
+								j = j + 1
+							end
+						end
+						j = j - 1
+						assert(j == #myNestedList[i])
+						i = i + 1
+					end
+				end
+				i = i - 1
+				assert(i == #myNestedList)
+
+				assert(bindValue:GetAttribute("value") == myVar)
+				assert(not bindChecked.checked)
+				assert(bindSubmitValue:GetAttribute("value") == myVar)
+				assert(not bindSubmitChecked.checked)
+
+				set_value(bindValue, "world")
+			elseif updateCount == 2 then
+				assert(bindValue:GetAttribute("value") == myVar)
+				assert(bindSubmitValue:GetAttribute("value") == myVar)
+
+				R.myVar = "goodbye"
+			elseif updateCount == 3 then
+				assert(bindValue:GetAttribute("value") == myVar)
+				assert(bindSubmitValue:GetAttribute("value") == myVar)
+
+				bindChecked.checked = true
+			elseif updateCount == 4 then
+				assert(myColour == bindChecked:GetAttribute("value"))
+				assert(bindChecked.checked)
+				assert(bindSubmitChecked.checked)
+
+				-- Update bind-submit bindings but don't apply
+				set_value(bindSubmitValue, "mars")
+				bindSubmitChecked.checked = true
+
+				R.myVar = "earth"
+				R.myColour = "blue"
+			elseif updateCount == 5 then
+				assert(myVar == "earth")
+				assert(myColour == "blue")
+				assert(bindSubmitValue:GetAttribute("value") == "mars")
+				assert(bindSubmitChecked.checked)
+
+				submitForm:Submit()
+			elseif updateCount == 6 then
+				assert(myVar == bindSubmitValue:GetAttribute("value"))
+				assert(myColour == bindSubmitChecked:GetAttribute("value"))
+				assert(bindSubmitChecked.checked)
+			elseif updateCount == 7 then
+				print("Data binding tests passed.")
 			end
 
-			local forElements2 = document:GetElementsByTagName("for2")
-			table.remove(forElements2, #forElements2)
-			test.assertEquals(#forElements2, #test3, "bind-for element count")
-			for i, e in pairs(forElements2) do
-				test.assertEquals(e.inner_rml, test3[i], "bind-for bind value, same element")
-			end
+			updateCount = updateCount + 1
+		end
 
-			outerList[2].title = "baaaa"
-			bindings:updateDirty()
-			test.assertEquals(
-				document:GetElementsByTagName("outerfor")[2]:GetElementsByTagName("h2")[1].inner_rml,
-				outerList[2].title,
-				"bind nested dirty variable")
+		function update()
+			bindings:update()
 
-			local textInputElement = document:GetElementById("text-input")
-			Element.As.ElementFormControlInput(textInputElement).value = "beans"
-			textInputElement:DispatchEvent("change", {value = "beans"})
-			bindings:setDeferredBindings()
-			bindings:updateDirty()
-			test.assertEquals(name, "beans", "bind-value text input")
-
-			local selectInputElement = document:GetElementById("select-input")
-			Element.As.ElementFormControlSelect(selectInputElement).selection = 2
-			bindings:setDeferredBindings()
-			bindings:updateDirty()
-			test.assertEquals(sensitivity, 2, "bind-value select input")
-
-			local checkboxInputElement = Element.As.ElementFormControlInput(document:GetElementById("checkbox-input"))
-			name = "pasta"
-			data_binding.dirty_variable(R.name)
-			bindings:updateDirty()
-			test.assert(checkboxInputElement.checked, "bind-value checkbox input checked")
-			checkboxInputElement.checked = false
-			bindings:setDeferredBindings()
-			bindings:updateDirty()
-			test.assertEquals(name, "", "bind-value checkbox input uncheck")
-
-			local radioInputElement1 = Element.As.ElementFormControlInput(document:GetElementById("radio-input-1"))
-			local radioInputElement2 = Element.As.ElementFormControlInput(document:GetElementById("radio-input-2"))
-			radioInputElement1.checked = true
-			bindings:setDeferredBindings()
-			bindings:updateDirty()
-			test.assertEquals(name, "blue", "bind-value radio input")
-			test.assert(radioInputElement1.checked, "bind-value radio input checked")
-			test.assert(not radioInputElement2.checked, "bind-value radio input checked")
-			radioInputElement2.checked = true
-			bindings:setDeferredBindings()
-			bindings:updateDirty()
-			test.assertEquals(name, "purp", "bind-value radio input")
-			test.assert(not radioInputElement1.checked, "bind-value radio input checked")
-			test.assert(radioInputElement2.checked, "bind-value radio input checked")
-
-			local preName = name
-			local preSensitivity = sensitivity
-			local preState = state
-			local textInputElement2 = Element.As.ElementFormControlInput(document:GetElementById("text-input-2"))
-			local selectInputElement2 = Element.As.ElementFormControlSelect(document:GetElementById("select-input-2"))
-			local checkboxInputElement2 = Element.As.ElementFormControlInput(document:GetElementById("checkbox-input-2"))
-			test.assertEquals(textInputElement2.value, name, "bind-submit-value text value")
-			test.assertEquals(selectInputElement2.value, tostring(sensitivity), "bind-submit-value select value")
-			textInputElement2.value = "beans"
-			textInputElement2:DispatchEvent("change", {value = "beans"})
-			selectInputElement2.selection = 5
-			checkboxInputElement2.checked = false
-			bindings:updateDirty()
-			test.assertEquals(name, preName, "bind-submit-value text before submit")
-			test.assertEquals(sensitivity, preSensitivity, "bind-submit-value select before submit")
-			test.assertEquals(state, preState, "bind-submit-checked before submit")
-			Element.As.ElementForm(document:GetElementById("submit-form")):Submit()
-			bindings:setDeferredBindings()
-			test.assertEquals(name, "beans", "bind-submit-value text after submit")
-			test.assertEquals(sensitivity, 5, "bind-submit-value select after submit")
-			test.assertEquals(state, "", "bind-submit-checked after submit")
+			test_data_binding()
 		end
 	</script>
 </head>
-<body id="body" onload="testingInterface.document = document">
-	<button onclick="testingInterface.make_bindings(document)">make bindings</button>
-	<button onclick="bindings:update()">update bindings</button>
-	<button onclick="bindings:updateDirty()">update dirty bindings</button>
-	<h1 id="title" bind="R.title" bind-class="'dynamic-'..'title'" bind-event-click="print('click test1') lastClickEvent = 'test1'">Test</h1>
-	<div id="main-menu-wrapper">
-		<div bind-class="'a-class'">some text</div>
-		<div bind-for="index, option in R.options">
-			<for class="wrapper">repeat me <span bind="index" /> <span bind="option" /></for>
-		</div>
-	</div>
-	<div>
-		<outerfor bind-for="position in R.outerList">
-			<h2 bind="R.position.title" />
-			<innerfor bind-for="colour in R.position.innerList" bind-event-click="print('click test2', element.inner_rml) lastClickEvent = element.inner_rml">
-				<span bind="colour" />
-			</innerfor>
-		</outerfor>
-	</div>
-	<img id="img" src="icons/health-icon.png" bind-attribute-src="imageSrc" />
-	<for2 id="bloop" bind-for="a in test3" bind="a" />
-	<input id="text-input" bind-value="data_binding.make_lens(R.name)" type="text" />
-	<div>name: <span bind="R.name" /></div>
-	<div bind-event-click="name = 'orange'">set name orange</div>
-	<input bind-value="data_binding.make_number_lens(R.sensitivity)" type="text" />
-	<div>sensitivity + 1: <span bind="#R.sensitivity + 1" /></div>
-	<select id="select-input" bind-value="data_binding.make_number_lens(R.sensitivity)">
-		<option value="1">1</option>
-		<option value="2">2</option>
-		<option value="3">3</option>
-	</select>
-	<form>
-		<input id="checkbox-input" type="checkbox" value="pasta" bind-checked="data_binding.make_lens(R.name)" /> Pasta
-		<input id="radio-input-1" type="radio" name="checky" value="blue" bind-checked="data_binding.make_lens(R.name)" /> blue
-		<input id="radio-input-2" type="radio" name="checky" value="purp" bind-checked="data_binding.make_lens(R.name)" /> purp
-	</form>
+<body onload="make_bindings(document)">
+	<div id="bind1" bind="R.myVar" />
+
+	<div id="bind2" bind="'myVar = ' .. #R.myVar" />
+
+	<ul id="bind-for1">
+		<li bind-for="v in R.myList" bind="R.v" />
+	</ul>
+
+	<ul id="bind-for2">
+		<li bind-for="i, v in R.myList" bind-attribute-index="R.i" bind="R.v" />
+	</ul>
+
+	<ul id="bind-for-nested">
+		<li bind-for="innerList in R.myNestedList">
+			<ul>
+				<li bind-for="v in R.innerList" bind="R.v" />
+			</ul>
+		</li>
+	</ul>
+
+	<input id="bind-value" bind-value="data_binding.make_lens(R.myVar)" type="text" />
+	<input id="bind-checked" type="checkbox" value="green" bind-checked="data_binding.make_lens(R.myColour)" />
+
 	<form id="submit-form" bind-submit>
-		<input id="radio-input-3" type="radio" name="checky2" value="blue" bind-submit-checked="data_binding.make_lens(R.name)" /> blue
-		<input id="radio-input-4" type="radio" name="checky2" value="purp" bind-submit-checked="data_binding.make_lens(R.name)" /> purp
-		<select id="select-input-2" bind-submit-value="data_binding.make_number_lens(R.sensitivity)">
-			<option value="1">1</option>
-			<option value="2">2</option>
-			<option value="3">3</option>
-			<option value="4">4</option>
-			<option value="5">5</option>
-			<option value="6">6</option>
-		</select>
-		<input id="checkbox-input-2" type="checkbox" value="on" bind-submit-checked="data_binding.make_lens(R.state)" /> Pasta
-		<input id="text-input-2" bind-submit-value="data_binding.make_lens(R.name)" type="text" />
-		<input id="submit-input" type="submit">apply</input>
+		<input id="bind-submit-value" bind-submit-value="data_binding.make_lens(R.myVar)" type="text" />
+		<input id="bind-submit-checked" type="checkbox" value="green" bind-submit-checked="data_binding.make_lens(R.myColour)" />
+		<input id="bind-submit-apply" type="submit">apply</input>
 	</form>
 </body>
 </rml>
