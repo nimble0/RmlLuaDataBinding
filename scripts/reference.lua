@@ -73,7 +73,7 @@ function ReferenceMt:__newindex(k, v)
 		container = container[keys[i]]
 	end
 
-	dirty_variable(self)
+	dirty_variable(self[k])
 	container[k] = v
 end
 
@@ -193,7 +193,9 @@ function HalfReferenceMt:__index(k)
 end
 
 function HalfReferenceMt:__newindex(k, v)
-	set_variable(self[k], v)
+	local container = self[__ROOT]
+	dirty_variable(self[k])
+	container[k] = v
 end
 
 function HalfReferenceMt:dereference() end
