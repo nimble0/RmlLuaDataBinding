@@ -234,7 +234,7 @@ function Bindings:bind(
 
 	local useForBindingId = false
 	if element:HasAttribute("bind-for") then
-		element:SetClass("bind-for-base", true)
+		element.class_name = element.class_name .. " bind-for-base"
 		local abstractBinding = bindings.AbstractForBinding:new(self.env, element, self.indirect)
 
 		if not useBindingId then
