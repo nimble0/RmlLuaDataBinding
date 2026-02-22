@@ -456,10 +456,6 @@ module.remove_on_create_element_listener = function(l) set.remove(onCreateElemen
 module.add_on_destroy_element_listener = function(l) set.insert(onDestroyElementListeners, l) end
 module.remove_on_destroy_element_listener = function(l) set.remove(onDestroyElementListeners, l) end
 
-module.make_variable_dirtyable = reference.make_variable_dirtyable
-module.make_container_dirtyable = reference.make_container_dirtyable
-module.is_variable_dirtyable = reference.is_variable_dirtyable
--- Dirty bindings dependent on variable
 module.dirty_variable = reference.dirty_variable
 module.set_variable = reference.set_variable
 
