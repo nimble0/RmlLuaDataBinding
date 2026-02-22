@@ -211,9 +211,34 @@ function R:__call(r)
 end
 
 
+-- Can be dereferenced like a Reference but doesn't have any of the other Reference functionality.
+-- Exists just to ease binding syntax.
+local FakeReferenceMt = {}
+local FakeReference = {}
+function FakeReference:new(value)
+	local o = {}
+	o.value = value
+	setmetatable(o, FakeReferenceMt)
+	return o
+end
+
+function FakeReferenceMt:dereference()
+	return self.value
+end
+
+function FakeReferenceMt:__len()
+	return FakeReferenceMt.dereference(self)
+end
+
+function FakeReference.is(ref)
+	return getmetatable(ref) == FakeReferenceMt
+end
+
+
 module.R = R
 module.Reference = Reference
 module.HalfReference = HalfReference
+module.FakeReference = FakeReference
 module.dirty_variable = dirty_variable
 module.set_variable = set_variable
 module.add_dirty_listener = function(l) set.insert(dirtyListeners, l) end

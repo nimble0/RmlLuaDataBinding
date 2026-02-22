@@ -230,6 +230,8 @@ function Binding:getValue()
 	if reference.Reference.is(value) then
 		r1 = #value
 		r2 = value
+	elseif reference.FakeReference.is(value) then
+		r1 = #value
 	else
 		r1 = value
 	end
@@ -534,7 +536,7 @@ function ForBinding:update()
 		local forElementBindings = elements[i]
 
 		self.env[indexKey] = i
-		rawset(self.env.R, indexKey, nil)
+		rawset(self.env.R, indexKey, reference.FakeReference:new(i))
 		self.env[valueKey] = v
 		rawset(self.env.R, valueKey, containerReference[i])
 
