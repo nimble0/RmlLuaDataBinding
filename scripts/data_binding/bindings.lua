@@ -147,6 +147,8 @@ local function bind_for_sub_element(
 			bind_for_sub_element(directBindings, indirectBindings, child, parent, parentIndex)
 		end
 	end
+
+	module.currentBindings:addElement(element)
 end
 
 local function bind_for_child(
@@ -189,6 +191,8 @@ local function bind_for_child(
 			bind_for_sub_element(forElement.bindings, indirectBindings, child, parent, parentIndex)
 		end
 	end
+
+	module.currentBindings:addElement(element)
 end
 
 
@@ -514,15 +518,9 @@ function ForBinding:update()
 		forElement:SetClass("bind-for-base", false)
 		forElement.inner_rml = self.element.inner_rml
 		bind_for_child(elements, self.indirectBindings, forElement, self)
-		for i = 1, #module.callbacks.onCreateElement do
-			xpcall(module.callbacks.onCreateElement[i], module.error_handler, forElement)
-		end
 	end
 	while valuesLength < #elements do
-		for i = 1, #module.callbacks.onDestroyElement do
-			xpcall(module.callbacks.onDestroyElement[i], module.error_handler, elements[#elements].element)
-		end
-		module.currentBindings:unregisterBindings(element)
+		module.currentBindings:removeElement(elements[#elements].element)
 		self.element.parent_node:RemoveChild(elements[#elements].element)
 		table.remove(elements, #elements)
 	end

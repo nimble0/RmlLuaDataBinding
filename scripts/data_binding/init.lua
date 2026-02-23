@@ -26,8 +26,8 @@ local elementBindingPriorities = {
 local __BINDINGS = {}
 
 local error_handler = print
-local onCreateElementListeners = {}
-local onDestroyElementListeners = {}
+local onAddElementListeners = {}
+local onRemoveElementListeners = {}
 
 
 local function update_dirty_bindings(bindings)
@@ -83,6 +83,8 @@ function Bindings:new(element, env)
 	o.dependencies = {}
 	o.updating = false
 	o.env = env
+	o.onAddElementListeners = {}
+	o.onRemoveElementListeners = {}
 	setmetatable(o.elementSubmitBindings, WeakValueTable)
 
 	table.insert(module.allBindings, o)
@@ -103,7 +105,14 @@ function Bindings:delete()
 	self.deferredSetBindings = {}
 	self.elementSubmitBindings = {}
 	self.dependencies = {}
+	self.onAddElementListeners = {}
+	self.onRemoveElementListeners = {}
 end
+
+function Bindings:addOnNewElementListener(l) set.insert(self.onAddElementListeners, l) end
+function Bindings:removeOnNewElementListener(l) set.remove(self.onAddElementListeners, l) end
+function Bindings:addOnDestroyElementListener(l) set.insert(self.onRemoveElementListeners, l) end
+function Bindings:removeOnDestroyElementListener(l) set.remove(self.onRemoveElementListeners, l) end
 
 function Bindings:registerBinding(element, binding)
 	if not binding then
@@ -116,8 +125,28 @@ function Bindings:registerBinding(element, binding)
 	elementBindings[binding.id] = binding
 end
 
-function Bindings:unregisterBindings(element)
+function Bindings:addElement(element)
+	for i = 1, #self.onAddElementListeners do
+		xpcall(self.onAddElementListeners[i], error_handler, element)
+	end
+
+	-- global listeners
+	for i = 1, #onAddElementListeners do
+		xpcall(onAddElementListeners[i], error_handler, element)
+	end
+end
+
+function Bindings:removeElement(element)
 	self.real[tostring(element)] = {}
+
+	for i = 1, #self.onRemoveElementListeners do
+		xpcall(self.onRemoveElementListeners[i], error_handler, element)
+	end
+
+	-- global listeners
+	for i = 1, #onRemoveElementListeners do
+		xpcall(onRemoveElementListeners[i], error_handler, element)
+	end
 end
 
 function Bindings:_dirtyBinding(binding)
@@ -317,9 +346,6 @@ function Bindings:bind(
 				self:registerBinding(element, elementBinding)
 			end
 			self.direct[elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
-			for i = 1, #onCreateElementListeners do
-				xpcall(onCreateElementListeners[i], error_handler, element)
-			end
 		end
 	end
 
@@ -329,6 +355,8 @@ function Bindings:bind(
 			self:bind(child, useBindingId)
 		end
 	end
+
+	bindings.currentBindings:addElement(element)
 end
 
 local function get_children(t, exclude_key)
@@ -433,10 +461,6 @@ end
 
 bindings.error_handler = error_handler
 bindings.elementBindingPriorities = elementBindingPriorities
-bindings.callbacks = {
-	onCreateElement = onCreateElementListeners,
-	onDestroyElement = onDestroyElementListeners
-}
 
 reference.add_dirty_listener(function(ref)
 	for i = 1, #module.allBindings do
@@ -451,10 +475,10 @@ module.make_number_lens = lenses.make_number_lens
 module.make_float_lens = lenses.make_float_lens
 module.make_boolean_lens = lenses.make_boolean_lens
 module.make_enum_lens = lenses.make_enum_lens
-module.add_on_create_element_listener = function(l) set.insert(onCreateElementListeners, l) end
-module.remove_on_create_element_listener = function(l) set.remove(onCreateElementListeners, l) end
-module.add_on_destroy_element_listener = function(l) set.insert(onDestroyElementListeners, l) end
-module.remove_on_destroy_element_listener = function(l) set.remove(onDestroyElementListeners, l) end
+module.add_on_add_element_listener = function(l) set.insert(onAddElementListeners, l) end
+module.remove_on_add_element_listener = function(l) set.remove(onAddElementListeners, l) end
+module.add_on_remove_element_listener = function(l) set.insert(onRemoveElementListeners, l) end
+module.remove_on_remove_element_listener = function(l) set.remove(onRemoveElementListeners, l) end
 
 module.dirty_variable = reference.dirty_variable
 module.set_variable = reference.set_variable
