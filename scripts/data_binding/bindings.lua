@@ -122,10 +122,11 @@ local function bind_for_sub_element(
 	directBindings,
 	indirectBindings,
 	element,
+	idAttribute,
 	parent,
 	parentIndex
 )
-	local id = tonumber(element:GetAttribute("bind-id"))
+	local id = tonumber(element:GetAttribute(idAttribute))
 	local abstractBindings = indirectBindings[id] or {}
 	local elementBindings = {}
 	for i = 1, #abstractBindings do
@@ -144,11 +145,9 @@ local function bind_for_sub_element(
 
 	if not element:HasAttribute("bind") and not element:HasAttribute("bind-for") then
 		for _, child in pairs(element.child_nodes) do
-			bind_for_sub_element(directBindings, indirectBindings, child, parent, parentIndex)
+			bind_for_sub_element(directBindings, indirectBindings, child, "bind-id", parent, parentIndex)
 		end
 	end
-
-	module.currentBindings:addElement(element)
 end
 
 local function bind_for_child(
@@ -161,36 +160,13 @@ local function bind_for_child(
 	table.insert(forElements, forElement)
 	forElement.element = element
 	forElement.bindings = {}
-
-	local parentIndex = #forElements
-
-	local id = tonumber(element:GetAttribute("bind-for-id"))
-	local abstractBindings = indirectBindings[id] or {}
-	local elementBindings = {}
-	for i = 1, #abstractBindings do
-		local elementBinding = abstractBindings[i]:apply(element)
-		if elementBinding then
-			elementBinding.parent = parent
-			elementBinding.parentIndex = parentIndex
-			table.insert(elementBindings, elementBinding)
-		end
-		module.currentBindings:registerBinding(element, elementBinding)
-	end
-
-	forElement.bindings = {}
 	for _, priority in pairs(module.elementBindingPriorities) do
 		forElement.bindings[priority] = {}
 	end
 
-	if #elementBindings > 0 then
-		forElement.bindings[module.elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
-	end
+	local parentIndex = #forElements
 
-	if not element:HasAttribute("bind") then
-		for _, child in pairs(element.child_nodes) do
-			bind_for_sub_element(forElement.bindings, indirectBindings, child, parent, parentIndex)
-		end
-	end
+	bind_for_sub_element(forElement.bindings, indirectBindings, element, "bind-for-id", parent, parentIndex)
 
 	module.currentBindings:addElement(element)
 end
