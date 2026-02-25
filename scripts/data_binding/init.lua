@@ -29,6 +29,104 @@ local error_handler = print
 local onAddElementListeners = {}
 local onRemoveElementListeners = {}
 
+local eventTypes = {
+	"mousedown",
+	"mousescroll",
+	"mouseover",
+	"mouseout",
+	"focus",
+	"blur",
+	"keydown",
+	"keyup",
+	"textinput",
+	"mouseup",
+	"click",
+	"dblclick",
+	"load",
+	"unload",
+	"show",
+	"hide",
+	"mousemove",
+	"dragmove",
+	"drag",
+	"dragstart",
+	"dragover",
+	"dragdrop",
+	"dragout",
+	"dragend",
+	"handledrag",
+	"resize",
+	"scroll",
+	"animationend",
+	"transitionend",
+	"change",
+	"submit",
+	"tabchange",
+}
+local attributeTypes = {
+	-- Taken from RmlUi documentation
+	-- Elements
+	"id",
+	"class",
+	"style",
+	"lang",
+	"dir",
+
+	-- RML Document Structure
+	"type",
+	"href",
+	"src",
+
+	-- RML Style Sheets
+	"style",
+
+	-- RML Templates
+	"name",
+	"content",
+	"src",
+	"template",
+
+	-- RML Images
+	"src",
+	"sprite",
+	"width",
+	"height",
+	"rect",
+
+	-- RML Forms
+	"name",
+	"value",
+	"disabled",
+	"autofocus",
+	"type",
+	"size",
+	"maxlength",
+	"placeholder",
+	"checked",
+	"min",
+	"max",
+	"step",
+	"orientation",
+	"cols",
+	"rows",
+	"wrap",
+	"maxlength",
+	"placeholder",
+	"selected",
+	"for",
+
+	-- RML Controls
+	"move_target",
+	"size_target",
+	"edge_margin",
+
+	-- RML Data Display Elements
+	"value",
+	"max",
+	"direction",
+	"start-edge",
+}
+
 
 local function update_dirty_bindings(bindings)
 	for binding, children in pairs(bindings) do
@@ -38,6 +136,25 @@ local function update_dirty_bindings(bindings)
 			update_dirty_bindings(children)
 		end
 	end
+end
+
+function element_path(e)
+	local identifiers = {}
+	table.insert(identifiers, e.tag_name)
+	if e.id ~= "" then
+		table.insert(identifiers, "#")
+		table.insert(identifiers, e.id)
+	end
+	if e.class_name ~= "" then
+		table.insert(identifiers, ".")
+		table.insert(identifiers, e.class_name)
+	end
+
+	if e.parent_node then
+		table.insert(identifiers, 1, " > ")
+		table.insert(identifiers, 1, element_path(e.parent_node))
+	end
+	return table.concat(identifiers)
 end
 
 
@@ -85,13 +202,50 @@ function Bindings:new(element, env)
 	o.env = env
 	o.onAddElementListeners = {}
 	o.onRemoveElementListeners = {}
+
+	local selectors = {
+		"[_bind]",
+		"[bind]",
+		"[bind-class]",
+		"[bind-for]",
+		"[bind-value]",
+		"[bind-checked]",
+		"[bind-submit]",
+		"[bind-submit-value]",
+		"[bind-submit-checked]",
+	}
+	for _, event in pairs(eventTypes) do
+		table.insert(selectors, "[bind-event-" .. event .. "]")
+	end
+	local attributeSelectors = {}
+	for _, attribute in pairs(attributeTypes) do
+		table.insert(selectors, "[bind-attribute-" .. attribute .. "]")
+	end
+
+	local function deduplicate(l)
+		table.sort(l)
+		local i = 1
+		while i < #l do
+			if l[i] == l[i + 1] then
+				table.remove(l, i)
+			else
+				i = i + 1
+			end
+		end
+	end
+	deduplicate(selectors)
+	o.bindingsSelector = table.concat(selectors, ", ")
+
 	setmetatable(o.elementSubmitBindings, WeakValueTable)
 
 	table.insert(module.allBindings, o)
 
 	bindings.currentBindings = o
-	o:bind(element)
+	for _, element in pairs(element:QuerySelectorAll(o.bindingsSelector)) do
+		o:bind(element)
+	end
 	bindings.currentBindings = nil
+	o:addElement(element)
 
 	return o
 end
@@ -259,6 +413,10 @@ function Bindings:bind(
 	element,
 	useBindingId
 )
+	if element:HasAttribute("bind-id") then
+		return
+	end
+
 	local abstractElementBindings = {}
 
 	local useForBindingId = false
@@ -279,7 +437,6 @@ function Bindings:bind(
 		end
 
 		-- Other binding on this element will only apply to its for elements
-		useBindingId = true
 		useForBindingId = true
 	end
 
@@ -349,14 +506,13 @@ function Bindings:bind(
 		end
 	end
 
-	-- Can't nest content bindings because inner_rml is replaced by a content binding
-	if not element:HasAttribute("bind") then
-		for _, child in pairs(element.child_nodes) do
-			self:bind(child, useBindingId)
+	if useForBindingId then
+		for _, element in pairs(element:QuerySelectorAll("* " .. self.bindingsSelector)) do
+			self:bind(element, true)
 		end
 	end
 
-	bindings.currentBindings:addElement(element)
+	self:addElement(element)
 end
 
 local function get_children(t, exclude_key)
@@ -479,6 +635,8 @@ module.add_on_add_element_listener = function(l) set.insert(onAddElementListener
 module.remove_on_add_element_listener = function(l) set.remove(onAddElementListeners, l) end
 module.add_on_remove_element_listener = function(l) set.insert(onRemoveElementListeners, l) end
 module.remove_on_remove_element_listener = function(l) set.remove(onRemoveElementListeners, l) end
+module.eventTypes = eventTypes
+module.attributeTypes = attributeTypes
 
 module.dirty_variable = reference.dirty_variable
 module.set_variable = reference.set_variable

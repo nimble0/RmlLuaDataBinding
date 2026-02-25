@@ -127,6 +127,10 @@ local function bind_for_sub_element(
 	parentIndex
 )
 	local id = tonumber(element:GetAttribute(idAttribute))
+	if id == nil then
+		return
+	end
+
 	local abstractBindings = indirectBindings[id] or {}
 	local elementBindings = {}
 	for i = 1, #abstractBindings do
@@ -141,12 +145,6 @@ local function bind_for_sub_element(
 
 	if #elementBindings > 0 then
 		directBindings[module.elementBindingPriorities[element.tag_name] or 1][element] = elementBindings
-	end
-
-	if not element:HasAttribute("bind") and not element:HasAttribute("bind-for") then
-		for _, child in pairs(element.child_nodes) do
-			bind_for_sub_element(directBindings, indirectBindings, child, "bind-id", parent, parentIndex)
-		end
 	end
 end
 
@@ -167,6 +165,10 @@ local function bind_for_child(
 	local parentIndex = #forElements
 
 	bind_for_sub_element(forElement.bindings, indirectBindings, element, "bind-for-id", parent, parentIndex)
+
+	for _, child in pairs(element:QuerySelectorAll("* " .. module.currentBindings.bindingsSelector)) do
+		bind_for_sub_element(forElement.bindings, indirectBindings, child, "bind-id", parent, parentIndex)
+	end
 
 	module.currentBindings:addElement(element)
 end
