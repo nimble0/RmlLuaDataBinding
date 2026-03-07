@@ -273,6 +273,27 @@ function ClassBinding:update()
 	self.element.class_name = self.fixedClass .. " " .. tostring(value)
 end
 
+local function to_class_list(...)
+	local classList = {}
+	local n = select("#", ...)
+	for i = 1, n, 2 do
+		local class = select(i, ...)
+		local activated = i == n or select(i + 1, ...)
+
+		if reference.Reference.is(class) or reference.FakeReference.is(class) then
+			class = #class
+		end
+		if reference.Reference.is(activated) or reference.FakeReference.is(activated) then
+			activated = #activated
+		end
+
+		if activated then
+			table.insert(classList, class)
+		end
+	end
+	return table.concat(classList, " ")
+end
+
 local AbstractClassBinding = {}
 function AbstractClassBinding:new(env, element)
 	local o = {}
@@ -280,7 +301,10 @@ function AbstractClassBinding:new(env, element)
 	self.__index = self
 	o.element = element
 	o.source = element:GetAttribute("bind-class")
-	o.binding = make_binding(env, o.source)
+	local binding = make_binding(env, o.source)
+	o.binding = function()
+		return to_class_list(binding())
+	end
 	return o
 end
 
