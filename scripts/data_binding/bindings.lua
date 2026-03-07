@@ -292,7 +292,11 @@ end
 local AttributeBinding = Binding:new()
 function AttributeBinding:update()
 	local value = self:getValue()
-	self.element:SetAttribute(self.attribute, tostring(value))
+	if value == nil then
+		self.element:RemoveAttribute(self.attribute)
+	else
+		self.element:SetAttribute(self.attribute, tostring(value))
+	end
 end
 
 local AbstractAttributeBinding = {}
